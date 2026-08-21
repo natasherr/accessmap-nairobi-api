@@ -6,7 +6,7 @@ THIS IS TEAM 12
 
 SUMMARY OF THE APP
    AccessMap Nairobi is a 100% frontend web application that helps people with disabilities and their carers find accessible venues across Nairobi. Users can search for hospitals, markets, schools, banks, and malls — and instantly see whether each venue has ramps, lifts, accessible toilets, accessible parking, and more.
-
+   All data is community-powered — anyone can submit a report in under two minutes.
 PART B AUDIT
  RESOURCE 1-VENUES
 Things stored:

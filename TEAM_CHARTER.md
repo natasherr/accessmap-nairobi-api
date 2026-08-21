@@ -32,3 +32,4 @@ Actions a user can take:
 RING POSITION
  We are team 12 thus we will consume from team 11 and team 13 will consume from us
 
+https://github.com/natasherr/accessmap-nairobi-api

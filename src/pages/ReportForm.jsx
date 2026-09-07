@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { CheckCircle2, Search, Plus, AlertTriangle, Send } from 'lucide-react'
-import { useVenues } from '../hooks/useVenues'
-import { useReports } from '../hooks/useReports'
+import { useVenues } from '../context/VenuesContext'
+import { useReports } from '../context/ReportsContext'
 import { BADGES, DEFAULT_ACCESSIBILITY } from '../constants/badges'
 import { NAIROBI_AREAS } from '../constants/areas'
 import { Link } from 'react-router-dom'
@@ -17,7 +17,7 @@ import { Link } from 'react-router-dom'
  * Step 3: Record accessibility features observed and give a star rating
  * Step 4: Review the report before submitting
  *
- * On submission, the report is saved to localStorage via useReports.
+ * On submission, the report is saved via the API through useReports.
  * If the user tries to add a duplicate venue, they are redirected to
  * the existing venue instead.
  *
@@ -469,14 +469,16 @@ export default function ReportForm() {
 
   /*
    * handleSaveNewVenue
-   * Calls addVenue to save the new venue to localStorage.
+   * Calls addVenue to save the new venue via the API.
+   * Awaits the result since addVenue now performs a network request.
    * If a duplicate is detected, redirects the user to the existing venue
    * at Step 2 with a warning message instead of creating a duplicate.
    */
-  const handleSaveNewVenue = () => {
-    const result = addVenue({
+  const handleSaveNewVenue = async () => {
+    const result = await addVenue({
       ...state.newVenue,
       accessibility: { ...DEFAULT_ACCESSIBILITY },
+      coordinates: { lat: -1.2921, lng: 36.8219 }, // Nairobi CBD — placeholder until real geocoding exists
     })
 
     if (result.error) {
@@ -495,11 +497,12 @@ export default function ReportForm() {
 
   /*
    * handleSubmit
-   * Saves the completed report to localStorage and marks the form as submitted
-   * so the success screen is shown.
+   * Saves the completed report via the API and marks the form as submitted
+   * so the success screen is shown. Awaits the result since addReport now
+   * performs a network request.
    */
-  const handleSubmit = () => {
-    addReport({
+  const handleSubmit = async () => {
+    await addReport({
       venueId: state.selectedVenue.id,
       rating: state.report.rating,
       description: state.report.description,

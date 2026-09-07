@@ -32,3 +32,19 @@ model Venue {
   addedAt           DateTime
   isSeeded          Boolean  @default(true)
 }
+model Report {
+  id                String   @id
+  venueId           String
+  rating            Int
+  description       String?
+  visitedAt         String
+  submittedAt       DateTime
+  ramp              Boolean
+  lift              Boolean
+  accessibleToilet  Boolean
+  accessibleParking Boolean
+  tactilePaving     Boolean
+  wideCorridors     Boolean
+  audioAssistance   Boolean
+  staffAssistance   Boolean
+}

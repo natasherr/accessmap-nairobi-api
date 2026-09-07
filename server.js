@@ -3,14 +3,15 @@ import cors from 'cors';
 import { PrismaClient } from './src/generated/prisma/client.ts';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { seedVenues } from './src/data/seedVenues.js';
+import { seedReports } from './src/data/seedReports.js';
 import 'dotenv/config';
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 async function ensureSeeded() {
-  const count = await prisma.venue.count();
-  if (count === 0) {
+  const venueCount = await prisma.venue.count();
+  if (venueCount === 0) {
     const data = seedVenues.map(v => ({
       id: v.id,
       slug: v.slug,
@@ -33,6 +34,28 @@ async function ensureSeeded() {
     }));
     await prisma.venue.createMany({ data, skipDuplicates: true });
     console.log(`Seeded ${data.length} venues.`);
+  }
+
+  const reportCount = await prisma.report.count();
+  if (reportCount === 0) {
+    const data = seedReports.map(r => ({
+      id: r.id,
+      venueId: r.venueId,
+      rating: r.rating,
+      description: r.description,
+      visitedAt: r.visitedAt,
+      submittedAt: new Date(r.submittedAt),
+      ramp: r.accessibility.ramp,
+      lift: r.accessibility.lift,
+      accessibleToilet: r.accessibility.accessibleToilet,
+      accessibleParking: r.accessibility.accessibleParking,
+      tactilePaving: r.accessibility.tactilePaving,
+      wideCorridors: r.accessibility.wideCorridors,
+      audioAssistance: r.accessibility.audioAssistance,
+      staffAssistance: r.accessibility.staffAssistance,
+    }));
+    await prisma.report.createMany({ data, skipDuplicates: true });
+    console.log(`Seeded ${data.length} reports.`);
   }
 }
 
@@ -60,6 +83,27 @@ function reshapeVenue(v) {
   };
 }
 
+function reshapeReport(r) {
+  return {
+    id: r.id,
+    venueId: r.venueId,
+    rating: r.rating,
+    description: r.description,
+    visitedAt: r.visitedAt,
+    submittedAt: r.submittedAt,
+    accessibility: {
+      ramp: r.ramp,
+      lift: r.lift,
+      accessibleToilet: r.accessibleToilet,
+      accessibleParking: r.accessibleParking,
+      tactilePaving: r.tactilePaving,
+      wideCorridors: r.wideCorridors,
+      audioAssistance: r.audioAssistance,
+      staffAssistance: r.staffAssistance,
+    },
+  };
+}
+
 function generateSlug(name) {
   return name
     .toLowerCase()
@@ -71,6 +115,8 @@ function generateSlug(name) {
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ── Venues ──
 
 app.get('/api/venues', async (req, res) => {
   const venues = await prisma.venue.findMany();
@@ -120,6 +166,45 @@ app.post('/api/venues', async (req, res) => {
       },
     });
     res.status(201).json(reshapeVenue(newVenue));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ── Reports ──
+
+app.get('/api/reports', async (req, res) => {
+  const reports = await prisma.report.findMany();
+  res.json(reports.map(reshapeReport));
+});
+
+app.get('/api/venues/:venueId/reports', async (req, res) => {
+  const reports = await prisma.report.findMany({ where: { venueId: req.params.venueId } });
+  res.json(reports.map(reshapeReport));
+});
+
+app.post('/api/reports', async (req, res) => {
+  try {
+    const r = req.body;
+    const newReport = await prisma.report.create({
+      data: {
+        id: 'r_' + Date.now(),
+        venueId: r.venueId,
+        rating: r.rating,
+        description: r.description,
+        visitedAt: r.visitedAt,
+        submittedAt: new Date(),
+        ramp: r.accessibility.ramp,
+        lift: r.accessibility.lift,
+        accessibleToilet: r.accessibility.accessibleToilet,
+        accessibleParking: r.accessibility.accessibleParking,
+        tactilePaving: r.accessibility.tactilePaving,
+        wideCorridors: r.accessibility.wideCorridors,
+        audioAssistance: r.accessibility.audioAssistance,
+        staffAssistance: r.accessibility.staffAssistance,
+      },
+    });
+    res.status(201).json(reshapeReport(newReport));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

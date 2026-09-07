@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Printer, MapPin } from 'lucide-react'
-import { useVenues } from '../hooks/useVenues'
-import { useReports } from '../hooks/useReports'
+import { useVenues } from '../context/VenuesContext'
+import { useReports } from '../context/ReportsContext'
 import { BADGES } from '../constants/badges'
 import { motion } from 'framer-motion'
 

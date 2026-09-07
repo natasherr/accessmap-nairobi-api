@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { MapPin, FileText, CheckCircle } from "lucide-react";
+import { useVenues } from "../context/VenuesContext"
+import { useReports } from "../context/ReportsContext"
+import { MapPin, FileText, CheckCircle } from "lucide-react"
 
 /*
  * StatsCounter
@@ -8,49 +9,33 @@ import { MapPin, FileText, CheckCircle } from "lucide-react";
  * - Total number of community reports submitted
  * - Total number of accessibility features recorded across all venues
  *
- * All counts are read directly from localStorage so they always
- * reflect the latest data without needing a page refresh.
+ * All counts are derived from the shared VenuesContext and ReportsContext,
+ * so they update automatically whenever a venue or report is added
+ * anywhere in the app — no refresh needed, no localStorage involved.
  *
  * Used by: Home.jsx
  */
 export default function StatsCounter() {
+  const { venues } = useVenues()
+  const { reports } = useReports()
 
-  // Holds the three stat values — starts at zero before localStorage is read
-  const [stats, setStats] = useState({ venues: 0, reports: 0, features: 0 });
+  const featureKeys = [
+    "ramp", "lift", "accessibleToilet", "accessibleParking",
+    "tactilePaving", "wideCorridors", "audioAssistance", "staffAssistance"
+  ]
 
-  useEffect(() => {
-    // Read the venues and reports arrays from localStorage
-    const venues  = JSON.parse(localStorage.getItem("accessmap_venues")  || "[]");
-    const reports = JSON.parse(localStorage.getItem("accessmap_reports") || "[]");
+  let featureCount = 0
+  venues.forEach(venue => {
+    featureKeys.forEach(key => {
+      if (venue.accessibility?.[key]) featureCount++
+    })
+  })
 
-    // Count how many individual accessibility features are marked as true
-    // across all venues combined
-    const featureKeys = [
-      "ramp", "lift", "accessibleToilet", "accessibleParking",
-      "tactilePaving", "wideCorridors", "audioAssistance", "staffAssistance"
-    ];
-
-    let featureCount = 0;
-    venues.forEach(venue => {
-      featureKeys.forEach(key => {
-        if (venue.accessibility?.[key]) featureCount++;
-      });
-    });
-
-    // Update state with the calculated counts
-    setStats({
-      venues: venues.length,
-      reports: reports.length,
-      features: featureCount,
-    });
-  }, []);
-
-  // Each item defines what icon, label, value, and color to display
   const items = [
-    { icon: MapPin,      label: "Venues Listed",         value: stats.venues,   color: "text-forest" },
-    { icon: FileText,    label: "Community Reports",      value: stats.reports,  color: "text-amber"  },
-    { icon: CheckCircle, label: "Accessibility Features", value: stats.features, color: "text-forest" },
-  ];
+    { icon: MapPin,      label: "Venues Listed",          value: venues.length,  color: "text-forest" },
+    { icon: FileText,    label: "Community Reports",       value: reports.length, color: "text-amber"  },
+    { icon: CheckCircle, label: "Accessibility Features",  value: featureCount,   color: "text-forest" },
+  ]
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -65,5 +50,5 @@ export default function StatsCounter() {
         </div>
       ))}
     </div>
-  );
+  )
 }

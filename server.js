@@ -59,6 +59,9 @@ async function ensureSeeded() {
   }
 }
 
+// Reshapes a database row into exactly what openapi.yaml's Venue schema
+// promises. isSeeded is intentionally NOT included — it's an internal
+// DB-only field the contract never mentioned (see CONTRACT_DEVIATIONS.md).
 function reshapeVenue(v) {
   return {
     id: v.id,
@@ -79,10 +82,10 @@ function reshapeVenue(v) {
     },
     coordinates: { lat: v.lat, lng: v.lng },
     addedAt: v.addedAt,
-    isSeeded: v.isSeeded,
   };
 }
 
+// Matches the Report schema exactly — used by POST /api/reports's response.
 function reshapeReport(r) {
   return {
     id: r.id,
@@ -118,17 +121,50 @@ app.use(express.json());
 
 // ── Venues ──
 
+// GET /api/venues
+// Contract: supports ?category=, ?area=, ?accessible= (boolean) query params
 app.get('/api/venues', async (req, res) => {
-  const venues = await prisma.venue.findMany();
+  const { category, area, accessible } = req.query;
+
+  const where = {};
+  if (category) where.category = category;
+  if (area) where.area = area;
+  if (accessible === 'true') {
+    where.ramp = true;
+    where.accessibleToilet = true;
+    where.accessibleParking = true;
+  }
+
+  const venues = await prisma.venue.findMany({ where });
   res.json(venues.map(reshapeVenue));
 });
 
+// GET /api/venues/:slug
 app.get('/api/venues/:slug', async (req, res) => {
   const venue = await prisma.venue.findUnique({ where: { slug: req.params.slug } });
   if (!venue) return res.status(404).json({ error: 'Not found' });
   res.json(reshapeVenue(venue));
 });
 
+// GET /api/venues/:slug/rating
+app.get('/api/venues/:slug/rating', async (req, res) => {
+  const venue = await prisma.venue.findUnique({ where: { slug: req.params.slug } });
+  if (!venue) return res.status(404).json({ error: 'Not found' });
+
+  const reports = await prisma.report.findMany({ where: { venueId: venue.id } });
+  const totalReports = reports.length;
+  const averageRating = totalReports === 0
+    ? 0
+    : Math.round((reports.reduce((sum, r) => sum + r.rating, 0) / totalReports) * 10) / 10;
+
+  res.json({
+    slug: venue.slug,
+    averageRating,
+    totalReports,
+  });
+});
+
+// POST /api/venues
 app.post('/api/venues', async (req, res) => {
   try {
     const v = req.body;
@@ -173,16 +209,24 @@ app.post('/api/venues', async (req, res) => {
 
 // ── Reports ──
 
+// ── Reports ──
+
+// GET /api/reports
+// NOTE: not yet in openapi.yaml — used internally by the frontend.
+// Documented in CONTRACT_DEVIATIONS.md as an extra endpoint beyond the contract.
 app.get('/api/reports', async (req, res) => {
   const reports = await prisma.report.findMany();
   res.json(reports.map(reshapeReport));
 });
 
+// GET /api/venues/:venueId/reports
+// NOTE: also not yet in openapi.yaml — same status as above.
 app.get('/api/venues/:venueId/reports', async (req, res) => {
   const reports = await prisma.report.findMany({ where: { venueId: req.params.venueId } });
   res.json(reports.map(reshapeReport));
 });
 
+// POST /api/reports
 app.post('/api/reports', async (req, res) => {
   try {
     const r = req.body;

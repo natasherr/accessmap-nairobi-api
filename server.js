@@ -165,10 +165,44 @@ app.get('/api/venues/:slug/rating', async (req, res) => {
 });
 
 // POST /api/venues
-app.post('/api/venues', async (req, res) => {
-  try {
-    const v = req.body;
+// Checks that an accessibility object has all 8 required boolean keys.
+// Returns an error message string if invalid, or null if valid.
+function validateAccessibility(acc) {
+  const keys = ['ramp', 'lift', 'accessibleToilet', 'accessibleParking',
+                'tactilePaving', 'wideCorridors', 'audioAssistance', 'staffAssistance'];
+  if (!acc || typeof acc !== 'object') return 'accessibility object is required';
+  for (const key of keys) {
+    if (typeof acc[key] !== 'boolean') return `accessibility.${key} must be a boolean`;
+  }
+  return null;
+}
 
+// POST /api/venues
+app.post('/api/venues', async (req, res) => {
+  const v = req.body;
+
+  // ── Validation first — nothing gets written until every check passes ──
+  if (!v.name || typeof v.name !== 'string') {
+    return res.status(400).json({ error: 'name is required and must be a string' });
+  }
+  if (!v.area || typeof v.area !== 'string') {
+    return res.status(400).json({ error: 'area is required and must be a string' });
+  }
+  if (!v.address || typeof v.address !== 'string') {
+    return res.status(400).json({ error: 'address is required and must be a string' });
+  }
+  if (!v.category || typeof v.category !== 'string') {
+    return res.status(400).json({ error: 'category is required and must be a string' });
+  }
+  const accError = validateAccessibility(v.accessibility);
+  if (accError) return res.status(400).json({ error: accError });
+
+  if (!v.coordinates || typeof v.coordinates.lat !== 'number' || typeof v.coordinates.lng !== 'number') {
+    return res.status(400).json({ error: 'coordinates.lat and coordinates.lng are required numbers' });
+  }
+
+  // ── Only now do we touch the database ──
+  try {
     const duplicate = await prisma.venue.findFirst({
       where: { name: v.name, area: v.area },
     });
@@ -203,13 +237,12 @@ app.post('/api/venues', async (req, res) => {
     });
     res.status(201).json(reshapeVenue(newVenue));
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Unexpected server error' });
   }
 });
-
 // ── Reports ──
 
-// ── Reports ──
+
 
 // GET /api/reports
 // NOTE: not yet in openapi.yaml — used internally by the frontend.
@@ -227,9 +260,31 @@ app.get('/api/venues/:venueId/reports', async (req, res) => {
 });
 
 // POST /api/reports
+// POST /api/reports
 app.post('/api/reports', async (req, res) => {
+  const r = req.body;
+
+  // ── Validation first ──
+  if (!r.venueId || typeof r.venueId !== 'string') {
+    return res.status(400).json({ error: 'venueId is required and must be a string' });
+  }
+  if (!Number.isInteger(r.rating) || r.rating < 1 || r.rating > 5) {
+    return res.status(400).json({ error: 'rating is required and must be an integer from 1 to 5' });
+  }
+  if (!r.visitedAt || typeof r.visitedAt !== 'string') {
+    return res.status(400).json({ error: 'visitedAt is required and must be a date string' });
+  }
+  const accError = validateAccessibility(r.accessibility);
+  if (accError) return res.status(400).json({ error: accError });
+
+  // ── Check the referenced venue actually exists before writing ──
+  const venue = await prisma.venue.findUnique({ where: { id: r.venueId } });
+  if (!venue) {
+    return res.status(404).json({ error: 'No venue found with the given venueId' });
+  }
+
+  // ── Only now do we write ──
   try {
-    const r = req.body;
     const newReport = await prisma.report.create({
       data: {
         id: 'r_' + Date.now(),
@@ -250,7 +305,7 @@ app.post('/api/reports', async (req, res) => {
     });
     res.status(201).json(reshapeReport(newReport));
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Unexpected server error' });
   }
 });
 

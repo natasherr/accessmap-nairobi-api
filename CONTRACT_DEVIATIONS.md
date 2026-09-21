@@ -91,3 +91,16 @@ still to be decided as a team:
 | `/venues/{slug}/rating`                 | Missing endpoint       | Fixed — implemented              |
 | Query param filtering on`/venues`       | Non-functional filters | Fixed — implemented              |
 | `/reports` and `/venues/{id}/reports` | Undocumented extras    | Kept — not yet added to contract |
+
+## 5. Error response schemas were undocumented
+
+**What changed:** The contract listed `400` and `404` responses for write
+endpoints, but only as bare text descriptions — no actual response schema,
+so a partner reading the contract couldn't know the error response's shape.
+`POST /api/venues` also returns `409` for duplicate venues, which wasn't
+documented in the contract at all.
+
+**Resolution:** Fixed the contract, not the code — the 409 behavior was
+already correct and intentional. Added a shared `Error` schema
+(`{ error: string }`), applied it to every `400`/`404` response, and added
+the missing `409` case to `POST /api/venues` with its full response shape.

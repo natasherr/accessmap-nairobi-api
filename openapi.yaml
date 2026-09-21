@@ -12,7 +12,6 @@ servers:
   - url: https://accessmap-nairobi.onrender.com
     description: Production server (Render)
 
-
 paths:
 
   /api/venues:
@@ -71,6 +70,12 @@ paths:
                   addedAt: "2024-01-15T10:30:00Z"
         '400':
           description: Invalid query parameter value supplied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Invalid query parameter value supplied
 
     post:
       summary: Add a new venue to the directory
@@ -126,6 +131,27 @@ paths:
                 addedAt: "2026-07-10T09:00:00Z"
         '400':
           description: Missing or invalid fields in request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: name is required and must be a string
+        '409':
+          description: A venue with this name already exists in this area
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                  - existing
+                properties:
+                  error:
+                    type: string
+                    example: A venue with this name already exists in this area.
+                  existing:
+                    $ref: '#/components/schemas/Venue'
 
   /api/venues/{slug}:
     get:
@@ -167,6 +193,12 @@ paths:
                 addedAt: "2024-01-15T10:30:00Z"
         '404':
           description: No venue found with the given slug
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: No venue found with the given slug
 
   /api/venues/{slug}/rating:
     get:
@@ -205,6 +237,12 @@ paths:
                     example: 5
         '404':
           description: No venue found with the given slug
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: No venue found with the given slug
 
   /api/reports:
     post:
@@ -254,11 +292,34 @@ paths:
                   staffAssistance: true
         '400':
           description: Missing or invalid fields in request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: rating is required and must be an integer from 1 to 5
         '404':
           description: No venue found with the given venueId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: No venue found with the given venueId
 
 components:
   schemas:
+
+    Error:
+      type: object
+      description: A validation or lookup error
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable explanation of what went wrong
+          example: name is required and must be a string
 
     Accessibility:
       type: object
@@ -467,7 +528,8 @@ components:
       properties:
         venueId:
           type: string
-          description: The id of the venue being reported on
+          description: >
+            The id of the venue being reported on. Must be an id previously returned by GET /api/venues or GET /api/venues/{slug} — not invented by the caller.
           example: v_001
         rating:
           type: integer

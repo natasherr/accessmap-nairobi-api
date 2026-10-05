@@ -200,11 +200,15 @@ router.post('/', async (req, res) => {
         existing: reshapeVenue(dupCheck.rows[0]),
       });
     }
-
-    const id = 'v_' + Date.now();
-    const slug = generateSlug(v.name);
-
-    const insertQuery = `
+    const maxIdResult = await pool.query(`
+      SELECT MAX(CAST(SUBSTRING(id FROM 3) AS INTEGER)) AS max_num 
+      FROM "Venue"
+      `);
+    
+       const nextNum = (maxIdResult.rows[0].max_num || 0) + 1;
+     const id = `v_${String(nextNum).padStart(3, "0")}`;
+     const slug=generateSlug(v.name)
+     const insertQuery = `
       INSERT INTO "Venue" (
         id, slug, name, area, address, category,
         ramp, lift, "accessibleToilet", "accessibleParking",

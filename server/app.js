@@ -18,6 +18,7 @@ app.get('/', (req, res) => {
   res.send('AccessMap API is running');
 });
 
+
 // Mount modular routes (Lab Step 4)
 app.use('/api/venues', venueRoutes);
 app.use('/api/reports', reportRoutes);

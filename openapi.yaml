@@ -9,7 +9,7 @@ info:
 servers:
   - url: http://localhost:5000
     description: Local development server
-  - url: https://accessmap-nairobi.onrender.com
+  - url: https://accessmap-nairobi-api-1.onrender.com
     description: Production server (Render)
 
 paths:

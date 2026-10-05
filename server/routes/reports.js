@@ -1,6 +1,7 @@
 import express from 'express';
 import pool from '../db.js';
 
+
 const router = express.Router();
 
 function reshapeReport(r) {
@@ -68,8 +69,15 @@ router.post('/', async (req, res) => {
     if (venueCheck.rows.length === 0) {
       return res.status(404).json({ error: 'No venue found with the given venueId' });
     }
+   // Extract the highest numeric suffix (after 'r_') from existing reports
+   const maxIdResult = await pool.query(`
+  SELECT MAX(CAST(SUBSTRING(id FROM 3) AS INTEGER)) AS max_num 
+  FROM "Report"
+  `);
 
-    const id = 'r_' + Date.now();
+   const nextNum = (maxIdResult.rows[0].max_num || 0) + 1;
+   const id = `r_${String(nextNum).padStart(3, "0")}`;
+   const slug =generateSlug(v.name);
     const insertQuery = `
       INSERT INTO "Report" (
         id, "venueId", rating, description, "visitedAt", "submittedAt",

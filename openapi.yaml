@@ -7,10 +7,11 @@ info:
     A community-powered accessibility directory for Nairobi venues.
     Exposes venue and report data for downstream partners such as Kanairo-Klean (Team 13).
 servers:
-  - url: http://localhost:5000
-    description: Local development server
+  
   - url: https://accessmap-nairobi-api-1.onrender.com
     description: Production server (Render)
+  - url: http://localhost:5000
+    description: Local development server
 
 paths:
 
@@ -449,6 +450,7 @@ components:
         - address
         - category
         - accessibility
+        - coordinates
       properties:
         name:
           type: string

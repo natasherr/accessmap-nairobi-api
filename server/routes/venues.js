@@ -183,8 +183,11 @@ router.post('/', async (req, res) => {
   const accError = validateAccessibility(v.accessibility);
   if (accError) return res.status(400).json({ error: accError });
 
-  const lat = v.coordinates?.lat ?? null;
-  const lng = v.coordinates?.lng ?? null;
+    if (!v.coordinates || typeof v.coordinates.lat !== 'number' || typeof v.coordinates.lng !== 'number') {
+    return res.status(400).json({ error: 'coordinates.lat and coordinates.lng are required numbers' });
+  }
+  const lat = v.coordinates.lat;
+  const lng = v.coordinates.lng;
 
   // ── Step 2: DB Writes ──
   try {

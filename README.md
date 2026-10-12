@@ -4,19 +4,20 @@ A REST API for accessibility information about venues across Nairobi: hospitals,
 
 It is built for developers whose apps need to know whether a place is physically accessible, and it powers the AccessMap Nairobi web app in this repository.
 
-|                                         |                                                                                                                   |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **Live API**                      | `https://accessmap-nairobi-api-1.onrender.com`                                                                  |
-| **Interactive docs (Swagger UI)** | [https://natasherr.github.io/accessmap-nairobi-api/docs/](https://natasherr.github.io/accessmap-nairobi-api/docs/) |
-| **Contract**                      | [`openapi.yaml`](openapi.yaml)                                                                                   |
+|                                         |                                                                                                                         |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Live API**                      | [Render_Production_Url](https://accessmap-nairobi-api-1.onrender.com)                                                    |
+| **Interactive docs (Swagger UI)** | [https://natasherr.github.io/acce<br />ssmap-nairobi-api/docs/](https://natasherr.github.io/accessmap-nairobi-api/docs/) |
+| **Contract**                      | [`openapi.yaml`](openapi.yaml)                                                                                         |
 
 All example commands below use the live API address. On Windows PowerShell, type `curl.exe` instead of `curl` (plain `curl` is a different command there). Responses are shown formatted for readability; the real output is a single line.
+
 
 ---
 
 ## Quickstart
 
-Copy, paste, run:
+Copy, paste, run on the terminal:
 
 ```bash
 curl https://accessmap-nairobi-api-1.onrender.com/api/venues/kenyatta-national-hospital
@@ -365,7 +366,7 @@ PORT=5000
 
 If your password contains special characters such as `#` or `@`, URL-encode them (`#` becomes `%23`, `@` becomes `%40`), or the connection will fail.
 
-**3. Create the tables.** Run the contents of [`server/schema.sql`](server/schema.sql) in your database. In Supabase, paste it into the SQL Editor. With a local PostgreSQL install, run `psql -d YOUR_DATABASE -f schema.sql`.
+**3. Create the tables.** Run the contents of [`server/schema/schema.sql`](server/schema.sql) in your database. In Supabase, paste it into the SQL Editor. With a local PostgreSQL install, run `psql -d YOUR_DATABASE -f schema.sql`.
 
 **4. Start the server:**
 

@@ -1,0 +1,17 @@
+{
+  "name": "Sunrise Pharmacy",
+  "area": "Westlands",
+  "address": "Mpaka Rd, Westlands, Nairobi",
+  "category": "other",
+  "accessibility": {
+    "ramp": true,
+    "lift": false,
+    "accessibleToilet": false,
+    "accessibleParking": true,
+    "tactilePaving": false,
+    "wideCorridors": true,
+    "audioAssistance": false,
+    "staffAssistance": false
+  },
+  "coordinates": { "lat": -1.2676, "lng": 36.8062 }
+}

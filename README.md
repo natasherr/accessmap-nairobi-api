@@ -12,12 +12,13 @@ It is built for developers whose apps need to know whether a place is physically
 
 All example commands below use the live API address. On Windows PowerShell, type `curl.exe` instead of `curl` (plain `curl` is a different command there). Responses are shown formatted for readability; the real output is a single line.
 
-
 ---
 
 ## Quickstart
 
 Copy, paste, run on the terminal:
+
+Use the the **-UseBasicParsing ** argument when prompted to do so to keep things simple 😁.
 
 ```bash
 curl https://accessmap-nairobi-api-1.onrender.com/api/venues/kenyatta-national-hospital
@@ -54,9 +55,29 @@ You should get `200 OK` with:
 
 ## Authentication
 
-None. Every endpoint is open and needs no key or token.
+**Current status:** Authentication has not yet been implemented. All API endpoints are currently accessible without an API key or access token.
 
-API keys for the write endpoints (`POST`) are planned. When they are added, this section will document the header to send.
+**Planned security control**
+
+Authentication middleware to validate credentials on protected endpoints.
+
+Authorization checks to restrict operations to permitted users.
+
+Input validation for incoming request data.
+
+Rate limiting to help prevent excessive requests.
+
+**Future authentication format:**
+
+Protected requests are expected to use the following heade
+
+```
+Athorization:Bearer <token>
+```
+
+**Important:** The header format above is a placeholder. Sending a token does not currently authenticate the requester, and protected-endpoint enforcement has not yet been implemented.
+
+Actual authentication and authorization behaviour will be documented once implemented.
 
 ---
 
@@ -158,9 +179,9 @@ Response `200`:
 
 ### 4. Add a venue: `POST /api/venues`
 
-Creates a real record. The server assigns `id` and `slug`; you do not send them.
+Creates a real record. The server assigns `id` and `slug`; you do not to send them.
 
-Save this as `venue.json`:
+Save this as `venue.json` in the folder where you are trying to make requests via the api.
 
 ```json
 {

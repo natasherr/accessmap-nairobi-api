@@ -1,0 +1,16 @@
+{
+  "venueId": "v_038",
+  "rating": 4,
+  "description": "Ramp at the entrance and helpful staff.",
+  "visitedAt": "2026-10-01",
+  "accessibility": {
+    "ramp": true,
+    "lift": false,
+    "accessibleToilet": false,
+    "accessibleParking": true,
+    "tactilePaving": false,
+    "wideCorridors": true,
+    "audioAssistance": false,
+    "staffAssistance": true
+  }
+}

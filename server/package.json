@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:partner": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.partner.config.js"
   },
   "keywords": [],
   "author": "",

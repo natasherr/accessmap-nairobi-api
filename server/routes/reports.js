@@ -1,7 +1,6 @@
 import express from 'express';
 import pool from '../db.js';
 
-
 const router = express.Router();
 
 function reshapeReport(r) {
@@ -69,15 +68,16 @@ router.post('/', async (req, res) => {
     if (venueCheck.rows.length === 0) {
       return res.status(404).json({ error: 'No venue found with the given venueId' });
     }
-   // Extract the highest numeric suffix (after 'r_') from existing reports
-   const maxIdResult = await pool.query(`
-  SELECT MAX(CAST(SUBSTRING(id FROM 3) AS INTEGER)) AS max_num 
-  FROM "Report"
-  `);
 
-   const nextNum = (maxIdResult.rows[0].max_num || 0) + 1;
-   const id = `r_${String(nextNum).padStart(3, "0")}`;
-   const slug =generateSlug(v.name);
+    // Extract the highest numeric suffix (after 'r_') from existing reports
+    const maxIdResult = await pool.query(`
+      SELECT MAX(CAST(SUBSTRING(id FROM 3) AS INTEGER)) AS max_num 
+      FROM "Report"
+    `);
+
+    const nextNum = (maxIdResult.rows[0].max_num || 0) + 1;
+    const id = `r_${String(nextNum).padStart(3, "0")}`;
+
     const insertQuery = `
       INSERT INTO "Report" (
         id, "venueId", rating, description, "visitedAt", "submittedAt",
@@ -97,9 +97,10 @@ router.post('/', async (req, res) => {
 
     const { rows } = await pool.query(insertQuery, values);
     res.status(201).json(reshapeReport(rows[0]));
-  } catch (err) {
+  }  catch (err) {
     console.error('Error creating report:', err);
-    res.status(500).json({ error: 'Unexpected server error' });
+    // TEMPORARY: send the actual database error back to the client
+    res.status(500).json({ error: err.message, detail: err.detail });
   }
 });
 

@@ -429,6 +429,7 @@ components:
             - school
             - transport
             - bank
+            - hotel
             - other
           example: hospital
         accessibility:

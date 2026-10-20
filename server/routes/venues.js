@@ -76,6 +76,10 @@ router.get('/', async (req, res) => {
   try {
     const { category, area, accessible } = req.query;
 
+    if (accessible !== undefined && accessible !== 'true' && accessible !== 'false') {
+      return res.status(400).json({ error: 'accessible must be a boolean (true or false)' });
+    }
+
     let query = 'SELECT * FROM "Venue"';
     const conditions = [];
     const values = [];

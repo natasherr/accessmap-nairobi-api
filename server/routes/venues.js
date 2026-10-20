@@ -207,15 +207,9 @@ router.post('/', async (req, res) => {
         existing: reshapeVenue(dupCheck.rows[0]),
       });
     }
-    const maxIdResult = await pool.query(`
-      SELECT MAX(CAST(SUBSTRING(id FROM 3) AS INTEGER)) AS max_num 
-      FROM "Venue"
-      `);
-    
-       const nextNum = (maxIdResult.rows[0].max_num || 0) + 1;
-     const id = `v_${String(nextNum).padStart(3, "0")}`;
-     const slug=generateSlug(v.name)
-     const insertQuery = `
+
+    const slug = generateSlug(v.name);
+    const insertQuery = `
       INSERT INTO "Venue" (
         id, slug, name, area, address, category,
         ramp, lift, "accessibleToilet", "accessibleParking",
@@ -226,15 +220,35 @@ router.post('/', async (req, res) => {
       RETURNING *;
     `;
 
-    const values = [
-      id, slug, v.name, v.area, v.address, v.category,
-      v.accessibility.ramp, v.accessibility.lift, v.accessibility.accessibleToilet,
-      v.accessibility.accessibleParking, v.accessibility.tactilePaving,
-      v.accessibility.wideCorridors, v.accessibility.audioAssistance, v.accessibility.staffAssistance,
-      lat, lng, new Date().toISOString(), false
-    ];
+    // Retry loop guards against PK collisions from concurrent inserts:
+    // two simultaneous requests can both read the same MAX and compute the same id.
+    let rows;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const maxIdResult = await pool.query(`
+        SELECT MAX(CAST(SUBSTRING(id FROM 3) AS INTEGER)) AS max_num
+        FROM "Venue"
+      `);
+      const nextNum = (maxIdResult.rows[0].max_num || 0) + 1;
+      const id = `v_${String(nextNum).padStart(3, '0')}`;
 
-    const { rows } = await pool.query(insertQuery, values);
+      const values = [
+        id, slug, v.name, v.area, v.address, v.category,
+        v.accessibility.ramp, v.accessibility.lift, v.accessibility.accessibleToilet,
+        v.accessibility.accessibleParking, v.accessibility.tactilePaving,
+        v.accessibility.wideCorridors, v.accessibility.audioAssistance, v.accessibility.staffAssistance,
+        lat, lng, new Date().toISOString(), false,
+      ];
+
+      try {
+        const result = await pool.query(insertQuery, values);
+        rows = result.rows;
+        break; // success
+      } catch (pkErr) {
+        if (pkErr.code === '23505' && attempt < 4) continue; // PK collision — retry
+        throw pkErr; // any other error, or exhausted retries
+      }
+    }
+
     res.status(201).json(reshapeVenue(rows[0]));
   } catch (err) {
     console.error('Error creating venue:', err);

@@ -1,6 +1,5 @@
 import request from 'supertest';
 import app from '../app.js';
-import pool from '../db.js';
 
 describe('GET /api/reports', () => {
   it('happy path: returns 200 and an array of reports matching the contract shape', async () => {
@@ -111,7 +110,4 @@ describe('POST /api/reports', () => {
     expect(res.body).toHaveProperty('error');
   });
 
-});
-afterAll(async () => {
-    await pool.end();
 });

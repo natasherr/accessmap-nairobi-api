@@ -1,6 +1,5 @@
 import request from 'supertest';
 import app from '../app.js';
-import pool from '../db.js';
 
 describe('GET /api/venues', () => {
   it('happy path: returns 200 and an array of venues matching the contract shape', async () => {
@@ -209,7 +208,4 @@ describe('POST /api/venues', () => {
     expect(second.body).toHaveProperty('existing');
     expect(second.body.existing.name).toBe(venue.name);
   });
-});
-afterAll(async () => {
-    await pool.end();
 });

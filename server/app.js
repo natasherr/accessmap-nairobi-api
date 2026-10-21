@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import venueRoutes from './routes/venues.js';
 import reportRoutes from './routes/reports.js';
+import partnerRoutes from './routes/partner.js';
 
 dotenv.config();
 
@@ -22,6 +23,6 @@ app.get('/', (req, res) => {
 // Mount modular routes (Lab Step 4)
 app.use('/api/venues', venueRoutes);
 app.use('/api/reports', reportRoutes);
-
+app.use('/api/partner', partnerRoutes);
 
 export  default app ;

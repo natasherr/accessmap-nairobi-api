@@ -29,3 +29,69 @@
   nav, footer, button { display: none !important; }
   body { background: white; color: black; }
 }
+
+.voter-edu-panel {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.voter-edu-panel h2 {
+  color: #111827;
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0 0 16px;
+}
+
+.candidate-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.candidate-list button.candidate {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  color: #111827;
+  cursor: pointer;
+  text-align: left;
+}
+
+.candidate-list button.candidate:hover {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.candidate-list button.candidate.selected {
+  background: #f0fdf4;
+  border-color: #1b6b3a;
+}
+
+.reviews-panel {
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.reviews-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.reviews-panel li {
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.reviews-panel li:last-child {
+  border-bottom: 0;
+}

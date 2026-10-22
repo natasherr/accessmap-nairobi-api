@@ -256,11 +256,12 @@ export default function VenueDetail() {
             })
           )}
 
-          {/* MOVED: Voter Edu candidates and reviews from the partner API */}
-          {/* Now renders after the Community reports block, as requested */}
-          <div className="mt-6">
-            <VoterEduPanel />
-          </div>
+          {/* Voter Guide — only shown on venues tagged as civic centres */}
+          {venue.isCivic && (
+            <div className="mt-6">
+              <VoterEduPanel slug={slug} />
+            </div>
+          )}
         </div>
       </motion.div>
     </div>

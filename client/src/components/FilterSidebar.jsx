@@ -42,6 +42,7 @@ const CATEGORIES = [
 export const DEFAULT_FILTERS = {
   searchText: '',
   area:       'All areas',
+  category:   'all',
   badges:     [],
   minRating:  0,
   sortBy:     'recent',

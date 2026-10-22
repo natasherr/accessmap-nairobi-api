@@ -13,6 +13,7 @@ function reshapeVenue(v) {
     area: v.area,
     address: v.address,
     category: v.category,
+    isCivic: v.isCivic ?? false,
     accessibility: {
       ramp: v.ramp,
       lift: v.lift,
@@ -252,6 +253,91 @@ router.post('/', async (req, res) => {
     res.status(201).json(reshapeVenue(rows[0]));
   } catch (err) {
     console.error('Error creating venue:', err);
+    res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
+
+// ── Civic / Voter Guide proxy routes ──
+// Both routes verify the venue exists and is tagged isCivic, then proxy
+// directly to the partner API. The partner URL never reaches the browser.
+
+function getPartnerUrl() {
+  return process.env.PARTNER_URL?.replace(/\/+$/, '');
+}
+
+async function verifyCivicVenue(slug, res) {
+  const { rows } = await pool.query(
+    'SELECT "isCivic" FROM "Venue" WHERE slug = $1',
+    [slug]
+  );
+  if (rows.length === 0) {
+    res.status(404).json({ error: 'No venue found with the given slug' });
+    return false;
+  }
+  if (!rows[0].isCivic) {
+    res.status(404).json({ error: 'This venue does not have a Voter Guide' });
+    return false;
+  }
+  return true;
+}
+
+// GET /api/venues/:slug/civic — returns candidate list for a civic-tagged venue
+router.get('/:slug/civic', async (req, res) => {
+  try {
+    const ok = await verifyCivicVenue(req.params.slug, res);
+    if (!ok) return;
+
+    const partnerUrl = getPartnerUrl();
+    if (!partnerUrl) {
+      return res.status(503).json({ error: 'Voter Edu data is not configured.' });
+    }
+
+    const partnerRes = await fetch(`${partnerUrl}/candidates`);
+    if (!partnerRes.ok) {
+      return res.status(502).json({ error: 'Voter Edu data is temporarily unavailable.' });
+    }
+    const candidates = await partnerRes.json();
+    if (!Array.isArray(candidates)) {
+      return res.status(502).json({ error: 'Voter Edu data is temporarily unavailable.' });
+    }
+
+    res.json(candidates.map(c => ({
+      id: c.id,
+      name: c.name,
+      party: c.party ?? null,
+      average_rating: c.average_rating ?? null,
+      review_count: c.review_count ?? 0,
+    })));
+  } catch (err) {
+    console.error('Error fetching civic candidates:', err);
+    res.status(500).json({ error: 'Unexpected server error' });
+  }
+});
+
+// GET /api/venues/:slug/civic/candidates/:candidateId/reviews — returns reviews for a candidate
+router.get('/:slug/civic/candidates/:candidateId/reviews', async (req, res) => {
+  try {
+    const ok = await verifyCivicVenue(req.params.slug, res);
+    if (!ok) return;
+
+    const partnerUrl = getPartnerUrl();
+    if (!partnerUrl) {
+      return res.status(503).json({ error: 'Voter Edu data is not configured.' });
+    }
+
+    const candidateId = encodeURIComponent(req.params.candidateId);
+    const partnerRes = await fetch(`${partnerUrl}/candidates/${candidateId}/reviews`);
+    if (!partnerRes.ok) {
+      return res.status(502).json({ error: 'Voter Edu reviews are temporarily unavailable.' });
+    }
+    const reviews = await partnerRes.json();
+    if (!Array.isArray(reviews)) {
+      return res.status(502).json({ error: 'Voter Edu reviews are temporarily unavailable.' });
+    }
+
+    res.json(reviews);
+  } catch (err) {
+    console.error('Error fetching civic reviews:', err);
     res.status(500).json({ error: 'Unexpected server error' });
   }
 });

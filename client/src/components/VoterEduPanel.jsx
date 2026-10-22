@@ -1,8 +1,20 @@
 import { useEffect, useState } from "react";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = "https://accessmap-nairobi-api-1.onrender.com/api";
 
-export default function VoterEduPanel() {
+/*
+ * VoterEduPanel
+ * Renders a Voter Guide section on venue detail pages that are tagged isCivic.
+ * Fetches candidates from the venue-scoped civic proxy route on our own backend,
+ * which in turn calls the Group 11 Voter Edu API — keeping the partner URL
+ * server-side only, never exposed to the browser.
+ *
+ * Props:
+ *  - slug {string}  The venue slug, used to scope the proxy route.
+ *
+ * Used by: VenueDetail.jsx (only rendered when venue.isCivic === true)
+ */
+export default function VoterEduPanel({ slug }) {
   const [candidates, setCandidates] = useState([]);
   const [candidatesLoading, setCandidatesLoading] = useState(true);
   const [candidatesError, setCandidatesError] = useState(false);
@@ -12,7 +24,7 @@ export default function VoterEduPanel() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState(false);
 
-  // 1. Fetch candidates on mount
+  // Fetch candidates for this civic venue on mount
   useEffect(() => {
     let cancelled = false;
 
@@ -20,7 +32,7 @@ export default function VoterEduPanel() {
       setCandidatesLoading(true);
       setCandidatesError(false);
       try {
-        const res = await fetch(`${API_BASE}/api/partner/candidates`);
+        const res = await fetch(`${API_BASE}/venues/${slug}/civic`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (!cancelled) setCandidates(Array.isArray(data) ? data : []);
@@ -32,12 +44,10 @@ export default function VoterEduPanel() {
     }
 
     load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    return () => { cancelled = true; };
+  }, [slug]);
 
-  // 6. Fetch reviews when a candidate is selected
+  // Fetch reviews when a candidate is selected
   useEffect(() => {
     if (!selectedId) return;
     let cancelled = false;
@@ -48,7 +58,7 @@ export default function VoterEduPanel() {
       setReviews([]);
       try {
         const res = await fetch(
-          `${API_BASE}/api/partner/candidates/${selectedId}/reviews`
+          `${API_BASE}/venues/${slug}/civic/candidates/${selectedId}/reviews`
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -61,12 +71,9 @@ export default function VoterEduPanel() {
     }
 
     load();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedId]);
+    return () => { cancelled = true; };
+  }, [selectedId, slug]);
 
-  // 2. Candidates loading state
   if (candidatesLoading) {
     return (
       <section className="voter-edu-panel">
@@ -76,7 +83,6 @@ export default function VoterEduPanel() {
     );
   }
 
-  // 3. Candidates unavailable state
   if (candidatesError) {
     return (
       <section className="voter-edu-panel">
@@ -104,21 +110,13 @@ export default function VoterEduPanel() {
                   aria-pressed={isSelected}
                   className={isSelected ? "candidate selected" : "candidate"}
                 >
-                  {/* 4. name, party, rating, review count */}
                   <strong>{candidate.name}</strong>
                   {candidate.party ? <span> — {candidate.party}</span> : null}
-                  <span>
-                    {" "}
-                    · Rating: {candidate.average_rating ?? "No rating yet"}
-                  </span>
-                  <span>
-                    {" "}
-                    · Reviews: {candidate.review_count ?? 0}
-                  </span>
+                  <span> · Rating: {candidate.average_rating ?? "No rating yet"}</span>
+                  <span> · Reviews: {candidate.review_count ?? 0}</span>
                 </button>
 
-                {/* 5 + 7. Reviews panel for the selected candidate */}
-                {isSelected ? (
+                {isSelected && (
                   <div className="reviews-panel">
                     {reviewsLoading ? (
                       <p>Loading reviews…</p>
@@ -132,15 +130,13 @@ export default function VoterEduPanel() {
                           <li key={review.id}>
                             <strong>{review.rating}/5</strong> — {review.text}
                             <br />
-                            <small>
-                              {review.user} · {review.date}
-                            </small>
+                            <small>{review.user} · {review.date}</small>
                           </li>
                         ))}
                       </ul>
                     )}
                   </div>
-                ) : null}
+                )}
               </li>
             );
           })}

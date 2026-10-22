@@ -46,6 +46,7 @@ export default function Directory() {
   // Count active filters to show a badge on the mobile filter button
   const activeFilterCount = [
     filters.area !== 'All areas',
+    filters.category !== 'all',
     filters.badges.length > 0,
     filters.minRating > 0,
     filters.sortBy !== 'recent',

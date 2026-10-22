@@ -22,6 +22,7 @@ CREATE TABLE "Venue" (
     "lng" DOUBLE PRECISION NOT NULL,
     "addedAt" TIMESTAMP(3) NOT NULL,
     "isSeeded" BOOLEAN NOT NULL DEFAULT true,
+    "isCivic" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Venue_pkey" PRIMARY KEY ("id")
 );

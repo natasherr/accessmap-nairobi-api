@@ -14,7 +14,7 @@
  * Used by: Directory.jsx
  */
 export function filterVenues(venues, reports, filters) {
-  const { searchText, area, badges, minRating, sortBy } = filters
+  const { searchText, area, category, badges, minRating, sortBy } = filters
 
   // Start with a copy of all venues so the original array is not mutated
   let results = [...venues]
@@ -35,6 +35,11 @@ export function filterVenues(venues, reports, filters) {
   // Filter by Nairobi sub-area — skipped if "All areas" is selected
   if (area && area !== 'All areas') {
     results = results.filter(v => v.area === area)
+  }
+
+  // Filter by category — skipped if "all" is selected
+  if (category && category !== 'all') {
+    results = results.filter(v => v.category === category)
   }
 
   // Filter by accessibility badges — only keeps venues that have ALL

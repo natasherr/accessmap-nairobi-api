@@ -18,7 +18,7 @@ All example commands below use the live API address. On Windows PowerShell, type
 
 Copy, paste, run on the terminal:
 
-Use the the **-UseBasicParsing ** argument when prompted to do so to keep things simple 😁.
+Use the **-UseBasicParsing** argument when prompted to do so to keep things simple 😁.
 
 ```bash
 curl https://accessmap-nairobi-api-1.onrender.com/api/venues/kenyatta-national-hospital
@@ -55,29 +55,57 @@ You should get `200 OK` with:
 
 ## Authentication
 
-**Current status:** Authentication has not yet been implemented. All API endpoints are currently accessible without an API key or access token.
-
-**Planned security control**
-
-Authentication middleware to validate credentials on protected endpoints.
-
-Authorization checks to restrict operations to permitted users.
-
-Input validation for incoming request data.
-
-Rate limiting to help prevent excessive requests.
-
-**Future authentication format:**
-
-Protected requests are expected to use the following heade
+Every endpoint requires an API key, sent in the `am-api-key` request header. Request a key from the AccessMap team. Keep it secret and never commit it to a repository.
 
 ```
-Athorization:Bearer <token>
+am-api-key: <your-api-key>
 ```
 
-**Important:** The header format above is a placeholder. Sending a token does not currently authenticate the requester, and protected-endpoint enforcement has not yet been implemented.
+A valid request:
 
-Actual authentication and authorization behaviour will be documented once implemented.
+```bash
+curl -i -H "am-api-key: <your-api-key>" https://accessmap-nairobi-api-1.onrender.com/api/venues/kenyatta-national-hospital
+```
+
+You get `200 OK` with the venue object shown in the Quickstart.
+
+### 401 Unauthorized
+
+The key is missing or wrong. Nothing is returned or saved.
+
+Header not sent:
+
+```
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json; charset=utf-8
+
+{"error":"API Key not found"}
+```
+
+Key sent but not valid:
+
+```
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json; charset=utf-8
+
+{"error":"API Key does not match"}
+```
+
+### 429 Too Many Requests
+
+The limit is **100 requests per minute per API key**, across all endpoints.
+
+```
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json; charset=utf-8
+Retry-After: 6
+
+{"error":"Too many requests","retryAfter":6}
+```
+
+Wait `retryAfter` seconds (the same value is in the `Retry-After` header) before retrying.
+
+
 
 ---
 
@@ -99,9 +127,9 @@ Returns an array of venues. With no parameters it returns every venue. Parameter
 
 | Parameter      | Type    | Meaning                                                                                                                          |
 | -------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `category`   | string  | Exact, case-sensitive match. Values in use:`hospital`, `market`, `office`, `school`, `transport`, `bank`, `other`  |
+| `category`   | string  | Exact, case-sensitive match. Values in use:`hospital`, `market`, `office`, `school`, `transport`, `bank`, `hotel`, `other`  |
 | `area`       | string  | Exact, case-sensitive match, for example`Westlands`, `Karen`, `CBD`, `Upper Hill`                                        |
-| `accessible` | boolean | `true` returns only venues that have a ramp, an accessible toilet **and** accessible parking. Any other value is ignored |
+| `accessible` | boolean | `true` returns only venues that have a ramp, an accessible toilet **and** accessible parking. An invalid value returns 400.
 
 Request:
 
@@ -179,7 +207,7 @@ Response `200`:
 
 ### 4. Add a venue: `POST /api/venues`
 
-Creates a real record. The server assigns `id` and `slug`; you do not to send them.
+Creates a real record. The server assigns `id` and `slug`; you do not need to send them.
 
 Save this as `venue.json` in the folder where you are trying to make requests via the api.
 
@@ -387,7 +415,7 @@ PORT=5000
 
 If your password contains special characters such as `#` or `@`, URL-encode them (`#` becomes `%23`, `@` becomes `%40`), or the connection will fail.
 
-**3. Create the tables.** Run the contents of [`server/schema/schema.sql`](server/schema.sql) in your database. In Supabase, paste it into the SQL Editor. With a local PostgreSQL install, run `psql -d YOUR_DATABASE -f schema.sql`.
+**3. Create the tables.** Run the contents of [`server/schema.sql`](server/schema.sql) in your database. In Supabase, paste it into the SQL Editor. With a local PostgreSQL install, run `psql -d YOUR_DATABASE -f schema.sql`.
 
 **4. Start the server:**
 
@@ -448,7 +476,6 @@ docs/          Swagger UI page, published with GitHub Pages
 openapi.yaml   The API contract
 ```
 
-## Repository layout
 
 ---
 

@@ -6,12 +6,19 @@ info:
   description: >
     A community-powered accessibility directory for Nairobi venues.
     Exposes venue and report data for downstream partners such as Kanairo-Klean (Team 13).
+
+    **Authentication:** every request must include an `am-api-key` header
+    (use the Authorize button to set it). Requests are limited to 100 per
+    minute; exceeding the limit returns `429`.
 servers:
   
   - url: https://accessmap-nairobi-api-1.onrender.com
     description: Production server (Render)
   - url: http://localhost:5000
     description: Local development server
+
+security:
+  - ApiKeyAuth: []
 
 paths:
 
@@ -36,7 +43,8 @@ paths:
         - name: accessible
           in: query
           required: false
-          description: If true, only return venues with key accessibility features present
+          description: If true, only return venues that have a ramp, an accessible toilet
+            and accessible parking. An invalid value returns 400.
           schema:
             type: boolean
             example: true
@@ -77,6 +85,10 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: Invalid query parameter value supplied
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
     post:
       summary: Add a new venue to the directory
@@ -138,6 +150,8 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: name is required and must be a string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '409':
           description: A venue with this name already exists in this area
           content:
@@ -153,6 +167,8 @@ paths:
                     example: A venue with this name already exists in this area.
                   existing:
                     $ref: '#/components/schemas/Venue'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /api/venues/{slug}:
     get:
@@ -192,6 +208,8 @@ paths:
                   lat: -1.3004
                   lng: 36.8073
                 addedAt: "2024-01-15T10:30:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           description: No venue found with the given slug
           content:
@@ -200,6 +218,8 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: No venue found with the given slug
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /api/venues/{slug}/rating:
     get:
@@ -236,6 +256,8 @@ paths:
                     type: integer
                     description: Total number of community reports this rating is based on
                     example: 5
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           description: No venue found with the given slug
           content:
@@ -244,6 +266,8 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: No venue found with the given slug
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /api/reports:
     post:
@@ -299,6 +323,8 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: rating is required and must be an integer from 1 to 5
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           description: No venue found with the given venueId
           content:
@@ -307,8 +333,55 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: No venue found with the given venueId
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
 components:
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: am-api-key
+      description: >
+        API key issued to your team. Send it in the `am-api-key` header on
+        every request. Never commit a real key to a repository.
+
+  responses:
+    Unauthorized:
+      description: >
+        The API key is missing or does not match. Nothing was returned or saved.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AuthError'
+          examples:
+            missingKey:
+              summary: The am-api-key header was not sent
+              value:
+                error: API Key not found
+            wrongKey:
+              summary: A key was sent but it is not valid
+              value:
+                error: API Key does not match
+    TooManyRequests:
+      description: >
+        Rate limit of 100 requests per minute exceeded. Wait the number of
+        seconds in the Retry-After header (also in the body) and try again.
+      headers:
+        Retry-After:
+          description: Seconds to wait before sending another request
+          schema:
+            type: integer
+            example: 6
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RateLimitError'
+          example:
+            message: Too many requests
+            retryAfter: 6
+
   schemas:
 
     Error:
@@ -321,6 +394,34 @@ components:
           type: string
           description: Human-readable explanation of what went wrong
           example: name is required and must be a string
+
+    AuthError:
+      type: object
+      description: Returned with 401 when the API key is missing or invalid
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: >
+            "API Key not found" when the am-api-key header is missing,
+            "API Key does not match" when the key is not valid
+          example: API Key not found
+
+    RateLimitError:
+      type: object
+      description: Returned with 429 when the rate limit is exceeded
+      required:
+        - error
+        - retryAfter
+      properties:
+        error:
+          type: string
+          example: Too many requests
+        retryAfter:
+          type: integer
+          description: Seconds to wait before retrying
+          example: 6
 
     Accessibility:
       type: object
@@ -471,6 +572,7 @@ components:
             - school
             - transport
             - bank
+            - hotel
             - other
           example: market
         accessibility:

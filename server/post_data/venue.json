@@ -1,8 +1,9 @@
 {
-  "name": "Sunrise Pharmacy",
+  "name": "Paulo Greenery",
   "area": "Westlands",
+  "country": "Kenya",
   "address": "Mpaka Rd, Westlands, Nairobi",
-  "category": "other",
+  "category": "market",
   "accessibility": {
     "ramp": true,
     "lift": false,

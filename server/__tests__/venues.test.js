@@ -1,6 +1,9 @@
 import request from 'supertest';
 import app from '../app.js';
 
+const API_KEY_HEADER = 'am-api-key';
+const VALID_API_KEY = process.env.API_KEY || 'test-key-123';
+
 describe('GET /api/venues', () => {
   it('happy path: returns 200 and an array of venues matching the contract shape', async () => {
     // Act
@@ -207,5 +210,33 @@ describe('POST /api/venues', () => {
     expect(second.status).toBe(409);
     expect(second.body).toHaveProperty('existing');
     expect(second.body.existing.name).toBe(venue.name);
+  });
+});
+
+describe('API key authentication', () => {
+ 
+  it('rejects a request with no am-api-key header with 401', async () => {
+    const res = await request(app).get('/api/venues');
+ 
+    expect(res.status).toBe(401);
+    expect(res.body).toHaveProperty('error');
+  });
+ 
+  it('accepts a request with a valid am-api-key header and returns 200', async () => {
+    const res = await request(app)
+      .get('/api/venues')
+      .set(API_KEY_HEADER, API_KEY);
+ 
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+ 
+  it('rejects a request with an invalid am-api-key header with 401', async () => {
+    const res = await request(app)
+      .get('/api/venues')
+      .set(API_KEY_HEADER, 'not-a-real-key');
+ 
+    expect(res.status).toBe(401);
+    expect(res.body).toHaveProperty('error');
   });
 });

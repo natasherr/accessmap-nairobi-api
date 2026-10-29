@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const API_BASE = 'https://accessmap-nairobi-api-1.onrender.com/api'
+const API_BASE = 'https://accessmap-nairobi-api-1.onrender.com'
 // once deployed on Render, swap this to your live URL, e.g.:
 // const API_BASE = 'https://your-app.onrender.com/api'
 

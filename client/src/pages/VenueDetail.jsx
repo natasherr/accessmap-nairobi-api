@@ -256,12 +256,8 @@ export default function VenueDetail() {
             })
           )}
 
-          {/* Voter Guide — only shown on venues tagged as civic centres */}
-          {venue.isCivic && (
-            <div className="mt-6">
-              <VoterEduPanel slug={slug} />
-            </div>
-          )}
+          {/* Group 11 partner feeds: candidates, rallies, and transit landmarks */}
+          <VoterEduPanel venue={venue} />
         </div>
       </motion.div>
     </div>

@@ -441,7 +441,7 @@ Some networks, including many campus Wi-Fi networks, block outbound PostgreSQL c
 npm test
 ```
 
-The tests run against the database in your `.env`, create test venues and reports in it, and expect the 33 seeded venues to be present, so run them against a seeded database.
+The tests create venues and reports. Set `TEST_DATABASE_URL` to a separate seeded test database before running them; the server refuses to use `DATABASE_URL` for Jest tests to prevent test records from leaking into the app directory. The test database should contain the venue fixtures expected by the tests.
 
 ---
 

@@ -2,21 +2,23 @@ import express from 'express';
 
 const router = express.Router();
 
-function getPartnerUrl() {
-  return process.env.PARTNER_URL?.replace(/\/+$/, '');
-}
+async function proxyPartnerGet(path, res) {
+  const partnerUrl = process.env.PARTNER_URL?.replace(/\/+$/, '');
+  const partnerApiKey = process.env.PARTNER_API_KEY;
 
-router.get('/candidates', async (req, res) => {
-  const partnerUrl = getPartnerUrl();
-
-  if (!partnerUrl) {
+  if (!partnerUrl || !partnerApiKey) {
     return res.status(503).json({
-      message: 'Voter Edu data is not configured.',
+      message: 'Voter Edu API is not configured.',
     });
   }
 
   try {
-    const partnerResponse = await fetch(`${partnerUrl}/candidates`);
+    const partnerResponse = await fetch(`${partnerUrl}${path}`, {
+      headers: {
+        'X-API-Key': partnerApiKey,
+        Accept: 'application/json',
+      },
+    });
 
     if (!partnerResponse.ok) {
       console.error('Voter Edu returned status', partnerResponse.status);
@@ -25,78 +27,30 @@ router.get('/candidates', async (req, res) => {
       });
     }
 
-    const candidates = await partnerResponse.json();
-
-    if (!Array.isArray(candidates)) {
-      console.error('Voter Edu returned an unexpected candidates response');
-      return res.status(502).json({
-        message: 'Voter Edu data is temporarily unavailable.',
-      });
-    }
-
-    res.json(
-      candidates.map(candidate => ({
-        id: candidate.id,
-        name: candidate.name,
-        party: candidate.party ?? null,
-        average_rating: candidate.average_rating ?? null,
-        review_count: candidate.review_count ?? 0,
-      }))
-    );
+    const data = await partnerResponse.json();
+    return res.status(200).json(data);
   } catch (error) {
     console.error(
       'Voter Edu request failed:',
       error.cause?.code || error.message
     );
 
-    res.status(502).json({
+    return res.status(502).json({
       message: 'Voter Edu data is temporarily unavailable.',
     });
   }
-});
+}
 
-router.get('/candidates/:candidateId/reviews', async (req, res) => {
-  const partnerUrl = getPartnerUrl();
+router.get('/rallies', (req, res) =>
+  proxyPartnerGet('/rallies', res)
+);
 
-  if (!partnerUrl) {
-    return res.status(503).json({
-      message: 'Voter Edu data is not configured.',
-    });
-  }
+router.get('/candidates', (req, res) =>
+  proxyPartnerGet('/candidates', res)
+);
 
-  try {
-    const candidateId = encodeURIComponent(req.params.candidateId);
-    const partnerResponse = await fetch(
-      `${partnerUrl}/candidates/${candidateId}/reviews`
-    );
-
-    if (!partnerResponse.ok) {
-      console.error('Voter Edu returned status', partnerResponse.status);
-      return res.status(502).json({
-        message: 'Voter Edu reviews are temporarily unavailable.',
-      });
-    }
-
-    const reviews = await partnerResponse.json();
-
-    if (!Array.isArray(reviews)) {
-      console.error('Voter Edu returned an unexpected reviews response');
-      return res.status(502).json({
-        message: 'Voter Edu reviews are temporarily unavailable.',
-      });
-    }
-
-    res.json(reviews);
-  } catch (error) {
-    console.error(
-      'Voter Edu request failed:',
-      error.cause?.code || error.message
-    );
-
-    res.status(502).json({
-      message: 'Voter Edu reviews are temporarily unavailable.',
-    });
-  }
-});
+router.get('/transport/landmarks', (req, res) =>
+  proxyPartnerGet('/transport/landmarks', res)
+);
 
 export default router;

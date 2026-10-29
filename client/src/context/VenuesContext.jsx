@@ -1,6 +1,11 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 
-const API_BASE ='https://accessmap-nairobi-api-1.onrender.com/api'
+const API_BASE = (
+  import.meta.env.VITE_API_BASE ||
+  (import.meta.env.DEV
+    ? 'http://localhost:5000/api'
+    : 'https://accessmap-nairobi-api-1.onrender.com/api')
+).replace(/\/+$/, '')
 const VenuesContext = createContext(null)
 
 export function VenuesProvider({ children }) {
@@ -9,19 +14,27 @@ export function VenuesProvider({ children }) {
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    let cancelled = false
+
     fetch(`${API_BASE}/venues`)
       .then(res => {
         if (!res.ok) throw new Error('Failed to fetch venues')
         return res.json()
       })
       .then(data => {
-        setVenues(data)
-        setLoading(false)
+        if (!cancelled) {
+          setVenues(data)
+          setLoading(false)
+        }
       })
       .catch(err => {
-        setError(err.message)
-        setLoading(false)
+        if (!cancelled) {
+          setError(err.message)
+          setLoading(false)
+        }
       })
+
+    return () => { cancelled = true }
   }, [])
 
   async function addVenue(venueData) {

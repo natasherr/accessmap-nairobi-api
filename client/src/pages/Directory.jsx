@@ -18,7 +18,7 @@ import VenueCard from '../components/VenueCard'
  * automatically applying the search text when the page loads.
  */
 export default function Directory() {
-  const { venues }  = useVenues()
+  const { venues, loading: venuesLoading, error: venuesError } = useVenues()
   const { reports } = useReports()
 
   // Holds the current filter state — passed down to FilterSidebar and filterVenues
@@ -52,8 +52,9 @@ export default function Directory() {
     filters.sortBy !== 'recent',
   ].filter(Boolean).length
 
-  // Show loading skeletons while venues are being read from localStorage
-  const isLoading = venues.length === 0
+  // Use the request state rather than an empty list: an API error should not
+  // leave the page showing loading skeletons forever.
+  const isLoading = venuesLoading
 
   return (
     <main className="min-h-screen bg-offwhite">
@@ -67,7 +68,9 @@ export default function Directory() {
           <p className="text-sm text-gray-500 mt-1">
             {isLoading
               ? 'Loading venues...'
-              : `Showing ${filteredVenues.length} of ${venues.length} venues`
+              : venuesError
+                ? 'Could not load venues.'
+                : `Showing ${filteredVenues.length} of ${venues.length} venues`
             }
           </p>
         </div>
@@ -141,8 +144,14 @@ export default function Directory() {
               </div>
             )}
 
+            {!isLoading && venuesError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+                Venues could not be loaded. Check that the AccessMap API is running and try refreshing the page.
+              </div>
+            )}
+
             {/* Empty state — shown when filters return no results */}
-            {!isLoading && filteredVenues.length === 0 && (
+            {!isLoading && !venuesError && filteredVenues.length === 0 && (
               <div className="flex flex-col items-center justify-center
                               py-16 text-center">
                 <p className="text-4xl mb-3" aria-hidden="true">🔍</p>
@@ -167,7 +176,7 @@ export default function Directory() {
             )}
 
             {/* Venue cards — one card per filtered venue */}
-            {!isLoading && filteredVenues.length > 0 && (
+            {!isLoading && !venuesError && filteredVenues.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filteredVenues.map(venue => (
                   <VenueCard

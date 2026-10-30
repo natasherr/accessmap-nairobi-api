@@ -447,7 +447,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173/. The app reads its API address from `API_BASE` in `client/src/context/VenuesContext.jsx` and `client/src/context/ReportsContext.jsx`. For local development, set it to `http://localhost:5000/api`.
+Open http://localhost:5173/. The app uses the deployed API (`https://accessmap-nairobi-api-1.onrender.com/api`) by default in both development and production. To override it, set `VITE_API_BASE` in the client environment.
 
 | Route            | Page                                 |
 | ---------------- | ------------------------------------ |

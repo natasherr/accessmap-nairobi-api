@@ -3,9 +3,7 @@ import { AlertTriangle, CalendarDays, Clock3, MapPin, UsersRound } from 'lucide-
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE ||
-  (import.meta.env.DEV
-    ? 'http://localhost:5000/api'
-    : 'https://accessmap-nairobi-api-1.onrender.com/api')
+  'https://accessmap-nairobi-api-1.onrender.com/api'
 ).replace(/\/+$/, '')
 
 function asList(payload) {

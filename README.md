@@ -55,19 +55,11 @@ You should get `200 OK` with:
 
 ## Authentication
 
-Every endpoint requires an API key, sent in the `am-api-key` request header. Request a key from the AccessMap team. Keep it secret and never commit it to a repository.
+The root `GET /` is a public health check. Read-only venue and report requests, plus `GET /api/partner/rallies`, are also public because this data is displayed in the browser app. These reads are rate-limited by client IP. Do not put an API key in frontend code.
 
-```
-am-api-key: <your-api-key>
-```
+All write requests and other API routes require an API key in the `am-api-key` request header. Keep keys in server environment variables, never in frontend code or the repository. The partner API key is used only by the backend when it fetches rallies.
 
-A valid request:
-
-```bash
-curl -i -H "am-api-key: <your-api-key>" https://accessmap-nairobi-api-1.onrender.com/api/venues/kenyatta-national-hospital
-```
-
-You get `200 OK` with the venue object shown in the Quickstart.
+For protected requests, send the header `am-api-key: <your-api-key>`. Public read requests do not need this header.
 
 ### 401 Unauthorized
 
@@ -93,14 +85,14 @@ Content-Type: application/json; charset=utf-8
 
 ### 429 Too Many Requests
 
-The limit is **100 requests per minute per API key**, across all endpoints.
+The limit is **100 requests per minute**. Public reads are limited per client IP; API-key-protected requests are limited per API key.
 
 ```
 HTTP/1.1 429 Too Many Requests
 Content-Type: application/json; charset=utf-8
-Retry-After: 6
+Retry-After: 60
 
-{"error":"Too many requests","retryAfter":6}
+{"error":"Too many requests","retryAfter":60}
 ```
 
 Wait `retryAfter` seconds (the same value is in the `Retry-After` header) before retrying.

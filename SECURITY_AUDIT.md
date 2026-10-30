@@ -2,11 +2,11 @@
 
 **Date:** 26 October 2026
 **Target:** the live API at https://accessmap-nairobi-api-1.onrender.com and this repository
-**Scope:** all five endpoints in `openapi.yaml`, plus the API key and rate-limit layers
+**Scope:** documented API endpoints, the public `GET /` health check and read-only browser endpoints, and the API key and rate-limit layers
 
 ## 1. Summary
 
-The API serves public directory data. It has no user accounts and stores no passwords, emails or other personal data, so the main risks are how keys are handled and how the write endpoints could be abused. We read every response the API can return (success and error) as an attacker would. We found one low-severity issue (a framework-disclosing header) and one key-handling issue from testing, and fixed both. The rate limit is 100 requests per minute.
+The API serves public directory data. It has no user accounts and stores no passwords, emails or other personal data, so the main risks are how keys are handled and how the write endpoints could be abused. Read-only venue and report requests and `GET /api/partner/rallies` are public for the browser app; writes and other API routes require a valid API key. Public reads are limited to 100 requests per minute per client IP, while protected requests are limited per API key.
 
 ## 2. What was checked
 
@@ -30,14 +30,14 @@ No other issues were found in the checks above.
 ## 4. Residual risks (accepted)
 
 - **Any key holder can add data.** `POST /api/venues` and `POST /api/reports` accept submissions with no moderation, and there is no delete endpoint. Mitigated by issuing keys per team and by the rate limit.
-- **Keys are shared secrets.** A key embedded in browser code is visible to anyone who opens dev tools, so keys are meant for server-to-server consumers.
-- **CORS allows any origin** (`Access-Control-Allow-Origin: *`). Acceptable because authentication is a header, not a cookie, but it means any website can call the API if it has a key.
-- **One limit for all endpoints.** Writes share the same budget as reads. A stricter limit on `POST` routes would be a sensible next step, along with storing only hashes of keys.
+- **Keys are shared secrets.** A key embedded in browser code is visible to anyone who opens dev tools, so keys are used only for protected server-to-server requests.
+- **CORS allows any origin** (`Access-Control-Allow-Origin: *`). Public read endpoints can therefore be called by any website; this is intentional because the returned directory data is public.
+- **In-memory rate limits.** Limits are per IP for public reads and per API key for protected routes. They reset when the server restarts and are not shared across multiple server instances.
 - **Transport security** is provided by Render (HTTPS) for the live API.
 
 ## 5. Rate limit: 100 requests per minute
 
-The limit is **100 requests per minute per API key**, across all endpoints. Exceeding it returns `429` with a `Retry-After` header and a JSON body telling the caller how many seconds to wait.
+The limit is **100 requests per minute**. Public reads are limited per client IP and protected requests per API key. Exceeding the limit returns `429` with a `Retry-After` header and a JSON body telling the caller how many seconds to wait.
 
 Why 100:
 

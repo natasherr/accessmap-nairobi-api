@@ -7,9 +7,10 @@ info:
     A community-powered accessibility directory for Nairobi venues.
     Exposes venue and report data for downstream partners such as Kanairo-Klean (Team 13).
 
-    **Authentication:** every request must include an `am-api-key` header
-    (use the Authorize button to set it). Requests are limited to 100 per
-    minute; exceeding the limit returns `429`.
+    **Authentication:** read-only venue and report requests are public, as is
+    `GET /api/partner/rallies`. All other API requests require an `am-api-key`
+    header (use the Authorize button to set it). Requests are limited to 100
+    per minute; exceeding the limit returns `429`.
 servers:
   
   - url: https://accessmap-nairobi-api-1.onrender.com
@@ -25,6 +26,7 @@ paths:
   /api/venues:
     get:
       summary: Get a list of venues, optionally filtered by category, area, and accessibility
+      security: []
       parameters:
         - name: category
           in: query
@@ -85,8 +87,6 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: Invalid query parameter value supplied
-        '401':
-          $ref: '#/components/responses/Unauthorized'
         '429':
           $ref: '#/components/responses/TooManyRequests'
 
@@ -173,6 +173,7 @@ paths:
   /api/venues/{slug}:
     get:
       summary: Get full details of a single venue by its slug
+      security: []
       parameters:
         - name: slug
           in: path
@@ -208,8 +209,6 @@ paths:
                   lat: -1.3004
                   lng: 36.8073
                 addedAt: "2024-01-15T10:30:00Z"
-        '401':
-          $ref: '#/components/responses/Unauthorized'
         '404':
           description: No venue found with the given slug
           content:
@@ -224,6 +223,7 @@ paths:
   /api/venues/{slug}/rating:
     get:
       summary: Get the average community star rating for a specific venue
+      security: []
       parameters:
         - name: slug
           in: path
@@ -256,8 +256,6 @@ paths:
                     type: integer
                     description: Total number of community reports this rating is based on
                     example: 5
-        '401':
-          $ref: '#/components/responses/Unauthorized'
         '404':
           description: No venue found with the given slug
           content:
@@ -270,6 +268,20 @@ paths:
           $ref: '#/components/responses/TooManyRequests'
 
   /api/reports:
+    get:
+      summary: Get public community accessibility reports
+      security: []
+      responses:
+        '200':
+          description: A list of reports associated with public venues
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Report'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
     post:
       summary: Submit a new community accessibility report for a venue
       requestBody:
@@ -345,7 +357,7 @@ components:
       name: am-api-key
       description: >
         API key issued to your team. Send it in the `am-api-key` header on
-        every request. Never commit a real key to a repository.
+        protected requests only. Never commit a real key to a repository.
 
   responses:
     Unauthorized:
@@ -373,14 +385,14 @@ components:
           description: Seconds to wait before sending another request
           schema:
             type: integer
-            example: 6
+            example: 60
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/RateLimitError'
           example:
             message: Too many requests
-            retryAfter: 6
+            retryAfter: 60
 
   schemas:
 
@@ -421,7 +433,7 @@ components:
         retryAfter:
           type: integer
           description: Seconds to wait before retrying
-          example: 6
+          example: 60
 
     Accessibility:
       type: object

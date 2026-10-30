@@ -1,6 +1,4 @@
-import { error } from "console";
-
-export function rateLimiter({ windowMs, max}) {
+export function rateLimiter({ windowMs, max }) {
     const hits = new Map(); // key -> { count, resetAt }
     return (req, res, next) => {
         

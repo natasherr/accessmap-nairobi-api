@@ -1,13 +1,22 @@
 import request from 'supertest';
-import app from '../app.js';
 
 const API_KEY_HEADER = 'am-api-key';
-const VALID_API_KEY = process.env.API_KEY || 'test-key-123';
+const VALID_API_KEY = 'test-key-123';
+process.env.API_KEY = VALID_API_KEY;
+const { default: app } = await import('../app.js');
+
+function apiGet(path) {
+  return request(app).get(path).set(API_KEY_HEADER, VALID_API_KEY);
+}
+
+function apiPost(path) {
+  return request(app).post(path).set(API_KEY_HEADER, VALID_API_KEY);
+}
 
 describe('GET /api/venues', () => {
   it('happy path: returns 200 and an array of venues matching the contract shape', async () => {
     // Act
-    const res = await request(app).get('/api/venues');
+    const res = await apiGet('/api/venues');
 
     // Assert — strong assertions, not just status
     expect(res.status).toBe(200);
@@ -26,7 +35,7 @@ describe('GET /api/venues', () => {
   });
 
   it('filters by category', async () => {
-    const res = await request(app).get('/api/venues?category=hospital');
+    const res = await apiGet('/api/venues?category=hospital');
 
     expect(res.status).toBe(200);
     expect(res.body.length).toBeGreaterThan(0);
@@ -34,14 +43,14 @@ describe('GET /api/venues', () => {
   });
 
   it('filters by area', async () => {
-    const res = await request(app).get('/api/venues?area=Westlands');
+    const res = await apiGet('/api/venues?area=Westlands');
 
     expect(res.status).toBe(200);
     expect(res.body.every(v => v.area === 'Westlands')).toBe(true);
   });
 
   it('filters by accessible=true (ramp + accessibleToilet + accessibleParking all true)', async () => {
-    const res = await request(app).get('/api/venues?accessible=true');
+    const res = await apiGet('/api/venues?accessible=true');
 
     expect(res.status).toBe(200);
     expect(res.body.every(v =>
@@ -52,7 +61,7 @@ describe('GET /api/venues', () => {
   });
 
   it('edge case: a category with no matches returns an empty array, not an error', async () => {
-    const res = await request(app).get('/api/venues?category=nonexistentcategory123');
+    const res = await apiGet('/api/venues?category=nonexistentcategory123');
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
@@ -61,7 +70,7 @@ describe('GET /api/venues', () => {
 
 describe('GET /api/venues/:slug', () => {
   it('happy path: returns 200 with full venue details for a real slug', async () => {
-    const res = await request(app).get('/api/venues/kenyatta-national-hospital');
+    const res = await apiGet('/api/venues/kenyatta-national-hospital');
 
     expect(res.status).toBe(200);
     expect(res.body.slug).toBe('kenyatta-national-hospital');
@@ -72,7 +81,7 @@ describe('GET /api/venues/:slug', () => {
   });
 
   it('not-found case: returns 404 with an error message for a slug that does not exist', async () => {
-    const res = await request(app).get('/api/venues/this-slug-does-not-exist');
+    const res = await apiGet('/api/venues/this-slug-does-not-exist');
 
     expect(res.status).toBe(404);
     expect(res.body).toHaveProperty('error');
@@ -82,7 +91,7 @@ describe('GET /api/venues/:slug', () => {
 
 describe('GET /api/venues/:slug/rating', () => {
   it('happy path: returns 200 with averageRating and totalReports for a venue with reports', async () => {
-    const res = await request(app).get('/api/venues/kenyatta-national-hospital/rating');
+    const res = await apiGet('/api/venues/kenyatta-national-hospital/rating');
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('slug', 'kenyatta-national-hospital');
@@ -92,7 +101,7 @@ describe('GET /api/venues/:slug/rating', () => {
   });
 
   it('not-found case: returns 404 for a nonexistent slug', async () => {
-    const res = await request(app).get('/api/venues/nonexistent-slug/rating');
+    const res = await apiGet('/api/venues/nonexistent-slug/rating');
 
     expect(res.status).toBe(404);
     expect(res.body).toHaveProperty('error');
@@ -111,11 +120,11 @@ describe('GET /api/venues/:slug/rating', () => {
       },
       coordinates: { lat: -1.29, lng: 36.82 },
     };
-    const createRes = await request(app).post('/api/venues').send(newVenue);
+    const createRes = await apiPost('/api/venues').send(newVenue);
     const slug = createRes.body.slug;
 
     // Act
-    const res = await request(app).get(`/api/venues/${slug}/rating`);
+    const res = await apiGet(`/api/venues/${slug}/rating`);
 
     // Assert
     expect(res.status).toBe(200);
@@ -126,14 +135,14 @@ describe('GET /api/venues/:slug/rating', () => {
 
 describe('GET /api/venues/:venueId/reports', () => {
   it('happy path: returns 200 and an array of reports for a venue that has reports', async () => {
-    const res = await request(app).get('/api/venues/v_001/reports');
+    const res = await apiGet('/api/venues/v_001/reports');
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
 
   it('edge case: a venueId with no reports returns an empty array, not an error', async () => {
-    const res = await request(app).get('/api/venues/v_does_not_exist/reports');
+    const res = await apiGet('/api/venues/v_does_not_exist/reports');
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
@@ -156,7 +165,7 @@ describe('POST /api/venues', () => {
   it('happy path: returns 201 and the created venue matching the contract shape', async () => {
     const venue = validVenue();
 
-    const res = await request(app).post('/api/venues').send(venue);
+    const res = await apiPost('/api/venues').send(venue);
 
     expect(res.status).toBe(201);
     expect(res.body.name).toBe(venue.name);
@@ -169,7 +178,7 @@ describe('POST /api/venues', () => {
   it('validation rejection: 400 when name is missing', async () => {
     const { name, ...invalid } = validVenue();
 
-    const res = await request(app).post('/api/venues').send(invalid);
+    const res = await apiPost('/api/venues').send(invalid);
 
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('error');
@@ -178,7 +187,7 @@ describe('POST /api/venues', () => {
   it('validation rejection: 400 when area is missing', async () => {
     const { area, ...invalid } = validVenue();
 
-    const res = await request(app).post('/api/venues').send(invalid);
+    const res = await apiPost('/api/venues').send(invalid);
 
     expect(res.status).toBe(400);
   });
@@ -186,7 +195,7 @@ describe('POST /api/venues', () => {
   it('validation rejection: 400 when accessibility is missing entirely', async () => {
     const { accessibility, ...invalid } = validVenue();
 
-    const res = await request(app).post('/api/venues').send(invalid);
+    const res = await apiPost('/api/venues').send(invalid);
 
     expect(res.status).toBe(400);
   });
@@ -195,7 +204,7 @@ describe('POST /api/venues', () => {
     const venue = validVenue();
     venue.accessibility.ramp = 'yes'; // should be boolean
 
-    const res = await request(app).post('/api/venues').send(venue);
+    const res = await apiPost('/api/venues').send(venue);
 
     expect(res.status).toBe(400);
   });
@@ -203,8 +212,8 @@ describe('POST /api/venues', () => {
   it('duplicate rejection: 409 when posting the same name+area twice', async () => {
     const venue = validVenue();
 
-    const first = await request(app).post('/api/venues').send(venue);
-    const second = await request(app).post('/api/venues').send(venue);
+    const first = await apiPost('/api/venues').send(venue);
+    const second = await apiPost('/api/venues').send(venue);
 
     expect(first.status).toBe(201);
     expect(second.status).toBe(409);
@@ -214,6 +223,12 @@ describe('POST /api/venues', () => {
 });
 
 describe('API key authentication', () => {
+  it('allows the public health check without an API key', async () => {
+    const res = await request(app).get('/');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toBe('AccessMap API is running');
+  });
  
   it('rejects a request with no am-api-key header with 401', async () => {
     const res = await request(app).get('/api/venues');
@@ -225,10 +240,17 @@ describe('API key authentication', () => {
   it('accepts a request with a valid am-api-key header and returns 200', async () => {
     const res = await request(app)
       .get('/api/venues')
-      .set(API_KEY_HEADER, API_KEY);
+      .set(API_KEY_HEADER, VALID_API_KEY);
  
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it('requires an API key for write requests too', async () => {
+    const res = await request(app).post('/api/venues').send({});
+
+    expect(res.status).toBe(401);
+    expect(res.body).toHaveProperty('error', 'API Key not found');
   });
  
   it('rejects a request with an invalid am-api-key header with 401', async () => {

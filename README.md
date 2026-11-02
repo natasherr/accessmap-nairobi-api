@@ -61,6 +61,14 @@ All write requests and other API routes require an API key in the `am-api-key` r
 
 For protected requests, send the header `am-api-key: <your-api-key>`. Public read requests do not need this header.
 
+## Upstream partner resilience
+
+Partner GET requests use a 1.5-second per-attempt timeout, at most two retries,
+and in-memory last-known-good data where available. The rallies endpoint marks
+fallback responses with `stale: true` and an `asOf` timestamp. Run the focused
+checks from `server` with `npm run test:resilience`; see
+[`RESILIENCE_NOTES.md`](RESILIENCE_NOTES.md) for the local flaky-partner drill.
+
 ### 401 Unauthorized
 
 The key is missing or wrong. Nothing is returned or saved.

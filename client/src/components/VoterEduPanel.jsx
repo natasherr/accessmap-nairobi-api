@@ -179,6 +179,7 @@ export default function VoterEduPanel({ venue }) {
   const [rallies, setRallies] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [staleAsOf, setStaleAsOf] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -189,7 +190,10 @@ export default function VoterEduPanel({ venue }) {
         const response = await fetch(API_BASE + '/partner/rallies')
         if (!response.ok) throw new Error('Partner rally request failed')
         const payload = await response.json()
-        if (!cancelled) setRallies(asList(payload))
+        if (!cancelled) {
+          setRallies(asList(payload))
+          setStaleAsOf(payload.stale ? payload.asOf : null)
+        }
       } catch {
         if (!cancelled) setError(true)
       } finally {
@@ -221,6 +225,11 @@ export default function VoterEduPanel({ venue }) {
       </div>
 
       <div className="p-4 sm:p-5">
+        {staleAsOf && (
+          <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
+            Showing saved rally data from {new Date(staleAsOf).toLocaleString('en-KE')}. Live partner data is temporarily unavailable.
+          </p>
+        )}
         {loading ? (
           <div className="grid gap-3" aria-label="Loading rally information">
             {[0, 1].map(item => (

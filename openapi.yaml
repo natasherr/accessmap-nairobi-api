@@ -282,6 +282,7 @@ paths:
                   $ref: '#/components/schemas/Report'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+
     post:
       summary: Submit a new community accessibility report for a venue
       requestBody:
@@ -347,6 +348,53 @@ paths:
                 error: No venue found with the given venueId
         '429':
           $ref: '#/components/responses/TooManyRequests'
+
+  /api/partner/rallies:
+    get:
+      summary: Get Group 11 rallies
+      description: >
+        Returns live rally data or, after a previous successful fetch, the
+        last-known-good response marked stale with its original fetch time.
+        The fallback is held in server memory and is cleared by a server restart.
+      security: []
+      responses:
+        '200':
+          description: Live or cached partner rally data
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - stale
+                  - asOf
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  stale:
+                    type: boolean
+                    description: Whether the response is from the last-known-good cache
+                  asOf:
+                    type: string
+                    format: date-time
+                    description: Time the returned data was fetched successfully
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '502':
+          description: Partner data unavailable and no saved response exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Partner URL or API key is not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
 components:
 

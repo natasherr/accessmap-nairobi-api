@@ -1,5 +1,6 @@
 import express from 'express';
 import pool from '../db.js';
+import { fetchPartnerJson, PartnerUnavailableError } from '../resilientFetch.js';
 
 const router = express.Router();
 
@@ -288,19 +289,24 @@ router.get('/:slug/civic', async (req, res) => {
     if (!ok) return;
 
     const partnerUrl = getPartnerUrl();
-    if (!partnerUrl) {
+    const partnerApiKey = process.env.PARTNER_API_KEY;
+    if (!partnerUrl || !partnerApiKey) {
       return res.status(503).json({ error: 'Voter Edu data is not configured.' });
     }
 
-    const partnerRes = await fetch(`${partnerUrl}/candidates`);
-    if (!partnerRes.ok) {
-      return res.status(502).json({ error: 'Voter Edu data is temporarily unavailable.' });
-    }
-    const candidates = await partnerRes.json();
-    if (!Array.isArray(candidates)) {
-      return res.status(502).json({ error: 'Voter Edu data is temporarily unavailable.' });
-    }
+    const { data: candidates, stale, asOf } = await fetchPartnerJson(
+      `${partnerUrl}/candidates`,
+      {
+        headers: {
+          'X-API-Key': partnerApiKey,
+          Accept: 'application/json',
+        },
+      },
+      { validate: Array.isArray }
+    );
 
+    res.set('X-Data-Stale', String(stale));
+    res.set('X-Data-As-Of', asOf);
     res.json(candidates.map(c => ({
       id: c.id,
       name: c.name,
@@ -309,6 +315,9 @@ router.get('/:slug/civic', async (req, res) => {
       review_count: c.review_count ?? 0,
     })));
   } catch (err) {
+    if (err instanceof PartnerUnavailableError) {
+      return res.status(502).json({ error: 'Voter Edu data is temporarily unavailable.' });
+    }
     console.error('Error fetching civic candidates:', err);
     res.status(500).json({ error: 'Unexpected server error' });
   }
@@ -321,22 +330,30 @@ router.get('/:slug/civic/candidates/:candidateId/reviews', async (req, res) => {
     if (!ok) return;
 
     const partnerUrl = getPartnerUrl();
-    if (!partnerUrl) {
+    const partnerApiKey = process.env.PARTNER_API_KEY;
+    if (!partnerUrl || !partnerApiKey) {
       return res.status(503).json({ error: 'Voter Edu data is not configured.' });
     }
 
     const candidateId = encodeURIComponent(req.params.candidateId);
-    const partnerRes = await fetch(`${partnerUrl}/candidates/${candidateId}/reviews`);
-    if (!partnerRes.ok) {
-      return res.status(502).json({ error: 'Voter Edu reviews are temporarily unavailable.' });
-    }
-    const reviews = await partnerRes.json();
-    if (!Array.isArray(reviews)) {
-      return res.status(502).json({ error: 'Voter Edu reviews are temporarily unavailable.' });
-    }
+    const { data: reviews, stale, asOf } = await fetchPartnerJson(
+      `${partnerUrl}/candidates/${candidateId}/reviews`,
+      {
+        headers: {
+          'X-API-Key': partnerApiKey,
+          Accept: 'application/json',
+        },
+      },
+      { validate: Array.isArray }
+    );
 
+    res.set('X-Data-Stale', String(stale));
+    res.set('X-Data-As-Of', asOf);
     res.json(reviews);
   } catch (err) {
+    if (err instanceof PartnerUnavailableError) {
+      return res.status(502).json({ error: 'Voter Edu reviews are temporarily unavailable.' });
+    }
     console.error('Error fetching civic reviews:', err);
     res.status(500).json({ error: 'Unexpected server error' });
   }

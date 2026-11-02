@@ -1,6 +1,14 @@
 import express from 'express';
+import { fetchPartnerJson, PartnerUnavailableError } from '../resilientFetch.js';
 
 const router = express.Router();
+
+function isRallyPayload(value) {
+  if (Array.isArray(value)) return true;
+  return value !== null &&
+    typeof value === 'object' &&
+    ['data', 'items', 'results', 'rallies'].some(key => Array.isArray(value[key]));
+}
 
 async function proxyPartnerGet(path, res) {
   const partnerUrl = process.env.PARTNER_URL?.replace(/\/+$/, '');
@@ -13,31 +21,28 @@ async function proxyPartnerGet(path, res) {
   }
 
   try {
-    const partnerResponse = await fetch(`${partnerUrl}${path}`, {
+    const result = await fetchPartnerJson(`${partnerUrl}${path}`, {
       headers: {
         'X-API-Key': partnerApiKey,
         Accept: 'application/json',
       },
+    }, {
+      validate: path === '/rallies' ? isRallyPayload : undefined,
     });
 
-    if (!partnerResponse.ok) {
-      console.error('Voter Edu returned status', partnerResponse.status);
-      return res.status(502).json({
-        message: 'Voter Edu data is temporarily unavailable.',
-      });
+    if (path === '/rallies') {
+      return res.status(200).json(result);
     }
 
-    const data = await partnerResponse.json();
-    return res.status(200).json(data);
+    res.set('X-Data-Stale', String(result.stale));
+    res.set('X-Data-As-Of', result.asOf);
+    return res.status(200).json(result.data);
   } catch (error) {
-    console.error(
-      'Voter Edu request failed:',
-      error.cause?.code || error.message
-    );
-
-    return res.status(502).json({
-      message: 'Voter Edu data is temporarily unavailable.',
-    });
+    if (error instanceof PartnerUnavailableError) {
+      return res.status(502).json({ message: 'Voter Edu data is temporarily unavailable.' });
+    }
+    console.error('Unexpected error while preparing Voter Edu response:', error);
+    return res.status(500).json({ message: 'Unexpected server error.' });
   }
 }
 

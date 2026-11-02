@@ -7,6 +7,8 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:resilience": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --config jest.resilience.config.js",
+    "demo:partner": "node flaky-partner.js",
     "test:partner": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.partner.config.js"
   },
   "keywords": [],

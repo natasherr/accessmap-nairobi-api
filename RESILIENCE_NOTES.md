@@ -19,16 +19,19 @@ browser. `server/flaky-partner.js` is a local stand-in with `ok`, `slow`,
 | Writes | Never retried | Repeating a POST could create duplicate records. |
 | 429 delay | Partner `Retry-After`, capped at 5 seconds per wait | Respects the partner while bounding each pause. |
 
-For timeouts or retryable server errors, the expected maximum is
-`3 × 1,500 ms + 200 ms + 400 ms = 5,100 ms`. Two 429 waits can extend the
-maximum to approximately 14,500 ms because each `Retry-After` wait is capped
-at 5 seconds.
+The rallies endpoint uses a faster budget: 400 ms per attempt, one retry, and
+100 ms between attempts. Its maximum timeout path is approximately
+`2 × 400 ms + 100 ms = 900 ms`; a 429 `Retry-After` is capped at 100 ms for
+this endpoint. Other partner feeds keep the general settings above.
 
 Successful valid JSON is held in server memory with an `asOf` timestamp. On a
 later failure, the rallies endpoint responds with `{ data, stale: true, asOf }`;
 the page displays a saved-data timestamp. If no good response has been cached
 since startup, the endpoint responds with 502 and the page displays its
-friendly unavailable message. Restarting the backend clears the cache.
+friendly unavailable message. Restarting the backend clears the server cache.
+The browser also keeps the last successful rallies response in local storage,
+so it can show saved rallies when the AccessMap API is unavailable. The browser
+waits no longer than one second for the API before using that local copy.
 
 ## Local resilience drill
 
@@ -77,11 +80,12 @@ passed, but the browser-based visual check remains a manual follow-up.
 
 ## User impact and limitation
 
-Without a timeout, a visitor opening a venue detail page could wait too long
-for Group 11's rallies response. With bounded retries, a brief partner failure
-may recover automatically. If the partner remains unavailable, the page can
-show the last successful data with its original timestamp, or a clear
-unavailable message if no successful data has been cached since server startup.
+The rallies panel shows an animated loading indicator while no data is
+available. With bounded retries, a brief partner failure may recover
+automatically; otherwise the backend returns its last-known-good response in
+under a second. If the AccessMap API itself is unavailable, the browser falls
+back to its local copy after at most one second. If neither cache has data, the
+page displays a clear unavailable message.
 
 A circuit breaker would temporarily stop calling a repeatedly failing partner
 and periodically send a probe request; this implementation instead retries

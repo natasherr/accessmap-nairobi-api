@@ -72,7 +72,7 @@ describe('GET /api/partner/rallies resilience contract', () => {
       ...liveResponse.body,
       stale: true,
     });
-    expect(globalThis.fetch).toHaveBeenCalledTimes(4);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
   });
 
   it('returns 502 if upstream fails before any good response is cached', async () => {
@@ -84,7 +84,7 @@ describe('GET /api/partner/rallies resilience contract', () => {
     expect(response.body).toEqual({
       message: 'Voter Edu data is temporarily unavailable.',
     });
-    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 
   it('does not cache a malformed rally response as last-known-good data', async () => {

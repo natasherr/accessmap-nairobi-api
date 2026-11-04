@@ -3,7 +3,7 @@
 The Week 11 resilience work is ready for review. It adds timeouts and bounded
 retries for safe partner API reads, serves last-known-good data when the
 partner is unavailable, and shows when rally data is stale. It also includes
-automated tests and a local flaky-partner demo.
+automated tests and a local flaky-partner demo.c
 
 After the changes are pushed, sync your local `develop` branch:
 

@@ -1,10 +1,29 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CalendarDays, Clock3, MapPin, UsersRound } from 'lucide-react'
+import { AlertTriangle, CalendarDays, Clock3, LoaderCircle, MapPin, UsersRound } from 'lucide-react'
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE ||
   'https://accessmap-nairobi-api-1.onrender.com/api'
 ).replace(/\/+$/, '')
+const RALLIES_CACHE_KEY = 'accessmap:rallies:v1'
+
+function readRalliesCache() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(RALLIES_CACHE_KEY) || 'null')
+    if (cached && Array.isArray(cached.data)) return cached
+  } catch (error) {
+    console.warn('Could not read saved rally data:', error)
+  }
+  return null
+}
+
+function saveRalliesCache(data, asOf) {
+  try {
+    localStorage.setItem(RALLIES_CACHE_KEY, JSON.stringify({ data, asOf }))
+  } catch (error) {
+    console.warn('Could not save rally data for offline use:', error)
+  }
+}
 
 function asList(payload) {
   if (Array.isArray(payload)) return payload
@@ -176,7 +195,8 @@ function RallyCard({ rally, venue }) {
 }
 
 export default function VoterEduPanel({ venue }) {
-  const [rallies, setRallies] = useState([])
+  const [cachedRallies] = useState(readRalliesCache)
+  const [rallies, setRallies] = useState(() => cachedRallies?.data || [])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [staleAsOf, setStaleAsOf] = useState(null)
@@ -187,22 +207,35 @@ export default function VoterEduPanel({ venue }) {
       setLoading(true)
       setError(false)
       try {
-        const response = await fetch(API_BASE + '/partner/rallies')
+        const response = await fetch(API_BASE + '/partner/rallies', {
+          signal: AbortSignal.timeout(1_000),
+        })
         if (!response.ok) throw new Error('Partner rally request failed')
         const payload = await response.json()
         if (!cancelled) {
-          setRallies(asList(payload))
-          setStaleAsOf(payload.stale ? payload.asOf : null)
+          const data = asList(payload)
+          const asOf = payload.asOf || new Date().toISOString()
+          setRallies(data)
+          setStaleAsOf(payload.stale ? asOf : null)
+          saveRalliesCache(data, asOf)
         }
       } catch {
-        if (!cancelled) setError(true)
+        if (!cancelled) {
+          if (cachedRallies) {
+            setRallies(cachedRallies.data)
+            setStaleAsOf(cachedRallies.asOf || new Date().toISOString())
+            setError(false)
+          } else {
+            setError(true)
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
     loadRallies()
     return () => { cancelled = true }
-  }, [])
+  }, [cachedRallies])
 
   const venueRallies = rallies
     .filter(rally => matchesVenue(rally, venue) && upcoming(rally))
@@ -225,16 +258,21 @@ export default function VoterEduPanel({ venue }) {
       </div>
 
       <div className="p-4 sm:p-5">
+        {loading && rallies.length > 0 && (
+          <p className="mb-4 flex items-center gap-2 text-sm text-gray-600" role="status" aria-live="polite">
+            <LoaderCircle className="h-4 w-4 animate-spin text-emerald-700" aria-hidden="true" />
+            Refreshing rally information…
+          </p>
+        )}
         {staleAsOf && (
           <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
             Showing saved rally data from {new Date(staleAsOf).toLocaleString('en-KE')}. Live partner data is temporarily unavailable.
           </p>
         )}
-        {loading ? (
-          <div className="grid gap-3" aria-label="Loading rally information">
-            {[0, 1].map(item => (
-              <div key={item} className="h-32 animate-pulse rounded-xl bg-gray-100" />
-            ))}
+        {loading && rallies.length === 0 ? (
+          <div className="flex min-h-32 flex-col items-center justify-center gap-3 rounded-xl bg-gray-50 text-sm text-gray-600" role="status" aria-live="polite">
+            <LoaderCircle className="h-8 w-8 animate-spin text-emerald-700" aria-hidden="true" />
+            <span>Loading rally information…</span>
           </div>
         ) : error ? (
           <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">

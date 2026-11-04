@@ -69,6 +69,56 @@ fallback responses with `stale: true` and an `asOf` timestamp. Run the focused
 checks from `server` with `npm run test:resilience`; see
 [`RESILIENCE_NOTES.md`](RESILIENCE_NOTES.md) for the local flaky-partner drill.
 
+## Request monitoring
+
+The API writes one JSON log line for each completed request. It records the
+timestamp, method, path without query parameters, status, response time, and
+either `none` or a short fingerprint of a valid API key. It never logs the key
+itself or request/response bodies.
+
+`GET /api/stats` requires the `am-api-key` header and returns in-memory request
+counts, error counts, response-time averages, and totals by route pattern.
+These numbers reset when the server restarts. Like the logger, it is intended
+for this lab, not as a replacement for production monitoring.
+
+Example:
+
+```powershell
+curl.exe -H "am-api-key: <your-api-key>" http://localhost:5000/api/stats
+```
+
+```json
+{
+  "startedAt": "2026-11-04T06:00:00.000Z",
+  "uptimeSeconds": 120,
+  "total": 10,
+  "clientErrors": 2,
+  "serverErrors": 0,
+  "errorRatePercent": 0,
+  "avgMs": 8.4,
+  "routes": {
+    "GET /api/venues": {
+      "count": 4,
+      "clientErrors": 0,
+      "serverErrors": 0,
+      "avgMs": 6.1,
+      "maxMs": 9.2
+    }
+  }
+}
+```
+
+For the lab traffic script, put `API_URL` and a valid `API_KEY` in `server/.env`,
+then run from `server`. `API_URL` can target the deployed API; if omitted, the
+script uses `http://localhost:<PORT>`:
+
+```powershell
+node traffic.js
+```
+
+The script sends read-only requests, including a missing-key request. Keep
+`requests.log` local; `*.log` files are ignored by Git.
+
 ### 401 Unauthorized
 
 The key is missing or wrong. Nothing is returned or saved.

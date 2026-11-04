@@ -105,6 +105,31 @@ describe('fetchWithRetry', () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 
+  it('uses the configured Retry-After cap for fast-fallback endpoints', async () => {
+    globalThis.fetch
+      .mockResolvedValueOnce(response(429, [], { 'Retry-After': '1' }))
+      .mockResolvedValueOnce(response(200));
+
+    const originalSetTimeout = globalThis.setTimeout;
+    const waits = [];
+    globalThis.setTimeout = (callback, ms, ...args) => {
+      waits.push(ms);
+      return originalSetTimeout(callback, 0, ...args);
+    };
+
+    try {
+      await fetchWithRetry('https://partner.test/rallies', {}, {
+        retries: 1,
+        retryAfterMaxMs: 100,
+      });
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+    }
+
+    expect(waits).toContain(100);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('never retries a write request', async () => {
     globalThis.fetch.mockResolvedValue(response(503));
 

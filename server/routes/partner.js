@@ -28,6 +28,9 @@ async function proxyPartnerGet(path, res) {
       },
     }, {
       validate: path === '/rallies' ? isRallyPayload : undefined,
+      ...(path === '/rallies'
+        ? { timeoutMs: 400, retries: 1, delayMs: 100, retryAfterMaxMs: 100 }
+        : {}),
     });
 
     if (path === '/rallies') {

@@ -6,6 +6,7 @@ import reportRoutes from './routes/reports.js';
 import partnerRoutes from './routes/partner.js';
 import { checkApiKey, isPublicReadRequest } from './middleware.js';
 import { rateLimiter } from './ratelimiter.js';
+import { monitor, statsHandler } from './monitoring.js';
 
 dotenv.config();
 
@@ -13,6 +14,7 @@ const app = express();
 export const PORT = process.env.PORT || 5000;
 
 // Middleware
+app.use(monitor);
 app.use(cors());
 app.use(express.json());
 app.disable('x-powered-by');
@@ -42,6 +44,8 @@ app.use('/api', (req, res, next) => {
     apiKeyRateLimiter(req, res, next)
   );
 });
+
+app.get('/api/stats', statsHandler);
 
 // Mount modular routes (Lab Step 4)
 app.use('/api/venues', venueRoutes);

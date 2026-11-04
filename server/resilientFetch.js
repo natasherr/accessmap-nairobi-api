@@ -11,11 +11,11 @@ export class PartnerUnavailableError extends Error {
   }
 }
 
-function retryDelay(response, attempt, delayMs) {
+function retryDelay(response, attempt, delayMs, retryAfterMaxMs) {
   if (response.status === 429) {
     const retryAfter = Number(response.headers.get('Retry-After'));
     if (Number.isFinite(retryAfter) && retryAfter > 0) {
-      return Math.min(retryAfter * 1_000, RETRY_AFTER_MAX_MS);
+      return Math.min(retryAfter * 1_000, retryAfterMaxMs);
     }
   }
 
@@ -32,6 +32,7 @@ export async function fetchWithRetry(url, options = {}, config = {}) {
     timeoutMs = 1_500,
     retries = 2,
     delayMs = 200,
+    retryAfterMaxMs = RETRY_AFTER_MAX_MS,
     consumeResponse,
   } = config;
   const method = (options.method || 'GET').toUpperCase();
@@ -49,7 +50,7 @@ export async function fetchWithRetry(url, options = {}, config = {}) {
         return response;
       }
 
-      const waitMs = retryDelay(response, attempt, delayMs);
+      const waitMs = retryDelay(response, attempt, delayMs, retryAfterMaxMs);
       console.warn(`Partner GET attempt ${attempt + 1} failed with HTTP ${response.status}; retrying in ${waitMs} ms`);
       await sleep(waitMs);
     } catch (error) {

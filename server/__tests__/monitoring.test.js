@@ -73,6 +73,25 @@ describe('request monitoring', () => {
     });
   });
 
+  it('fingerprints the API key on authenticated stats requests', async () => {
+    await request(app)
+      .get('/api/stats')
+      .set('am-api-key', 'monitor-test-key');
+
+    const entry = JSON.parse(log.mock.calls[0][0]);
+    const expectedHash = crypto.createHash('sha256')
+      .update('monitor-test-key')
+      .digest('hex')
+      .slice(0, 6);
+
+    expect(entry).toMatchObject({
+      path: '/api/stats',
+      status: 200,
+      caller: `key-${expectedHash}`,
+    });
+    expect(log.mock.calls[0][0]).not.toContain('monitor-test-key');
+  });
+
   it('reports request totals and groups ids under the route pattern', async () => {
     const before = await request(app)
       .get('/api/stats')
@@ -97,5 +116,7 @@ describe('request monitoring', () => {
     });
     expect(after.body.routes['GET /api/items/:id'].clientErrors).toBeGreaterThanOrEqual(1);
     expect(after.body.errorRatePercent).toEqual(expect.any(Number));
+    expect(after.text).toContain('\n  "startedAt"');
+    expect(after.text).toContain('\n  "routes": {');
   });
 });

@@ -58,6 +58,7 @@ describe('public read-only endpoint policy', () => {
   publicReadApp.get('/api/reports', (req, res) => res.sendStatus(200));
   publicReadApp.get('/api/partner/rallies', (req, res) => res.sendStatus(200));
   publicReadApp.get('/api/partner/candidates', (req, res) => res.sendStatus(200));
+  publicReadApp.get('/api/stats', (req, res) => res.json({ apiKey: req.apiKey }));
   publicReadApp.post('/api/venues', (req, res) => res.sendStatus(201));
 
   it.each([
@@ -75,10 +76,20 @@ describe('public read-only endpoint policy', () => {
 
   it.each([
     ['GET', '/api/partner/candidates'],
+    ['GET', '/api/stats'],
     ['POST', '/api/venues'],
   ])('continues requiring a key for %s %s', async (method, path) => {
     const response = await request(publicReadApp)[method.toLowerCase()](path);
 
     expect(response.status).toBe(401);
+  });
+
+  it('authenticates /api/stats and attaches the accepted key for monitoring', async () => {
+    const response = await request(publicReadApp)
+      .get('/api/stats')
+      .set('am-api-key', 'test-key-2');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ apiKey: 'test-key-2' });
   });
 });

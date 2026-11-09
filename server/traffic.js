@@ -36,7 +36,10 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     }
     await pause(50);
   }
-  console.log('Status codes received:', counts);
+  console.log('\n=== Traffic Summary ===');
+  console.table(
+    Object.entries(counts).map(([status, requests]) => ({ status, requests }))
+  );
 
   const statsResponse = await fetch(`${API}/api/stats`, {
     headers: { 'am-api-key': KEY },
@@ -44,5 +47,20 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   if (!statsResponse.ok) {
     throw new Error(`Could not read /api/stats (HTTP ${statsResponse.status})`);
   }
-  console.log('API stats:', await statsResponse.json());
+  const stats = await statsResponse.json();
+
+  console.log('\n=== API Stats ===');
+  console.log(`Total requests: ${stats.total}`);
+  console.log(`Client errors (4xx): ${stats.clientErrors}`);
+  console.log(`Server errors (5xx): ${stats.serverErrors}`);
+  console.log(`Server error rate: ${stats.errorRatePercent}%`);
+  console.log(`Average response time: ${stats.avgMs} ms`);
+
+  console.log('\n=== Requests by Route ===');
+  console.table(
+    Object.entries(stats.routes).map(([route, values]) => ({
+      route,
+      ...values,
+    }))
+  );
 })();

@@ -39,8 +39,13 @@ rallies feature should continue showing its last-known-good data when available.
 - The same finish handler counts requests and groups them by route pattern.
   For example, different item IDs share one route row.
 - `GET /api/stats` returns the counts and averages held in server memory. The
-  counts reset when the server restarts. A 401 or 429 rejected before a route
-  matches appears under `(no route)`.
+  endpoint requires a valid `am-api-key`; its request log records a short
+  hashed caller label, never the key itself. The counts reset when the server
+  restarts. A 401 or 429 rejected before a route matches appears under
+  `(no route)`.
+- `GET /api/partner/rallies` is public to API callers, so its log may show
+  `caller: "none"` even if a caller sends an API key. The backend separately
+  uses `PARTNER_API_KEY` when requesting the partner service.
 
 ## Commands for the lab
 

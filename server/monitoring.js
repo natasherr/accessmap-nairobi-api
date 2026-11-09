@@ -75,7 +75,7 @@ export function statsHandler(req, res) {
   const rate = stats.total ? (stats.serverErrors / stats.total) * 100 : 0;
   const avg = stats.total ? stats.totalMs / stats.total : 0;
 
-  res.json({
+  const response = {
     startedAt: stats.startedAt,
     uptimeSeconds: Math.round(process.uptime()),
     total: stats.total,
@@ -84,5 +84,7 @@ export function statsHandler(req, res) {
     errorRatePercent: round(rate),
     avgMs: round(avg),
     routes,
-  });
+  };
+
+  res.type('json').send(JSON.stringify(response, null, 2));
 }

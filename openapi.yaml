@@ -7,10 +7,10 @@ info:
     A community-powered accessibility directory for Nairobi venues.
     Exposes venue and report data for downstream partners such as Kanairo-Klean (Team 13).
 
-    **Authentication:** read-only venue and report requests are public, as is
-    `GET /api/partner/rallies`. All other API requests require an `am-api-key`
-    header (use the Authorize button to set it). Requests are limited to 100
-    per minute; exceeding the limit returns `429`.
+    **Authentication:** read-only venue and report requests are public, as are
+    `GET /api/partner/rallies` and the narrowly scoped rally feedback submission.
+    All other API requests require an `am-api-key` header (use the Authorize
+    button to set it). Requests are rate-limited; exceeding a limit returns `429`.
 servers:
   
   - url: https://accessmap-nairobi-api-1.onrender.com
@@ -383,6 +383,76 @@ paths:
                     description: Time the returned data was fetched successfully
         '429':
           $ref: '#/components/responses/TooManyRequests'
+
+  /api/partner/rallies/{rallyId}/comments:
+    post:
+      summary: Submit accessibility feedback for a rally
+      description: >
+        Proxies attendee feedback to the Voter Edu API. The partner API key is
+        held by this server and is never sent to the client. This public write
+        is rate-limited to five requests per minute per client IP, and requests
+        are not retried.
+      security: []
+      parameters:
+        - name: rallyId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: rally_08
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - comment
+              properties:
+                comment:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                user:
+                  type: string
+                  maxLength: 80
+                accessible:
+                  anyOf:
+                    - type: integer
+                      enum: [0, 1]
+                    - type: boolean
+                congestion_level:
+                  type: string
+                  enum: [Low, Medium, Extreme]
+            example:
+              user: Amina K.
+              comment: Main gates had ramp access open and security moved crowds fast.
+              accessible: 1
+              congestion_level: Medium
+      responses:
+        '201':
+          description: Feedback successfully submitted to Voter Edu
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                id: 1
+                rally_id: rally_08
+                user: Amina K.
+                comment: Main gates had ramp access open and security moved crowds fast.
+                accessible: 1
+                congestion_level: Medium
+                date: '2026-11-09'
+        '400':
+          description: Invalid feedback fields
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '502':
+          description: The partner service could not save the feedback
+        '503':
+          description: Partner API credentials are not configured on this server
         '502':
           description: Partner data unavailable and no saved response exists
           content:

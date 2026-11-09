@@ -230,11 +230,11 @@ describe('API key authentication', () => {
     expect(res.text).toBe('AccessMap API is running');
   });
  
-  it('rejects a request with no am-api-key header with 401', async () => {
+  it('allows venue reads without an am-api-key header', async () => {
     const res = await request(app).get('/api/venues');
  
-    expect(res.status).toBe(401);
-    expect(res.body).toHaveProperty('error');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
   });
  
   it('accepts a request with a valid am-api-key header and returns 200', async () => {
@@ -253,12 +253,12 @@ describe('API key authentication', () => {
     expect(res.body).toHaveProperty('error', 'API Key not found');
   });
  
-  it('rejects a request with an invalid am-api-key header with 401', async () => {
+  it('allows venue reads with an invalid am-api-key header', async () => {
     const res = await request(app)
       .get('/api/venues')
       .set(API_KEY_HEADER, 'not-a-real-key');
  
-    expect(res.status).toBe(401);
-    expect(res.body).toHaveProperty('error');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
   });
 });

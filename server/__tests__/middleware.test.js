@@ -1,6 +1,10 @@
 import express from 'express';
 import request from 'supertest';
-import { checkApiKey, isPublicReadRequest } from '../middleware.js';
+import {
+  checkApiKey,
+  isPublicReadRequest,
+  isPublicRallyFeedbackRequest,
+} from '../middleware.js';
 
 process.env.API_KEY = 'test-key-1,test-key-2';
 
@@ -48,7 +52,7 @@ describe('API key middleware', () => {
 describe('public read-only endpoint policy', () => {
   const publicReadApp = express();
   publicReadApp.use('/api', (req, res, next) => {
-    if (isPublicReadRequest(req)) return next();
+    if (isPublicReadRequest(req) || isPublicRallyFeedbackRequest(req)) return next();
     return checkApiKey(req, res, next);
   });
   publicReadApp.get('/api/venues', (req, res) => res.sendStatus(200));
@@ -60,6 +64,7 @@ describe('public read-only endpoint policy', () => {
   publicReadApp.get('/api/partner/candidates', (req, res) => res.sendStatus(200));
   publicReadApp.get('/api/stats', (req, res) => res.json({ apiKey: req.apiKey }));
   publicReadApp.post('/api/venues', (req, res) => res.sendStatus(201));
+  publicReadApp.post('/api/partner/rallies/:rallyId/comments', (req, res) => res.sendStatus(201));
 
   it.each([
     ['GET', '/api/venues'],
@@ -82,6 +87,16 @@ describe('public read-only endpoint policy', () => {
     const response = await request(publicReadApp)[method.toLowerCase()](path);
 
     expect(response.status).toBe(401);
+  });
+
+  it('allows only the specific rally feedback POST without an API key', async () => {
+    const response = await request(publicReadApp)
+      .post('/api/partner/rallies/rally_08/comments');
+    const unrelatedWrite = await request(publicReadApp)
+      .post('/api/partner/rallies/rally_08/comments/other');
+
+    expect(response.status).toBe(201);
+    expect(unrelatedWrite.status).toBe(401);
   });
 
   it('authenticates /api/stats and attaches the accepted key for monitoring', async () => {

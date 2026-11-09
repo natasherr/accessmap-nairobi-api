@@ -1,9 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-
-const API_BASE = (
-  import.meta.env.VITE_API_BASE 
- 
-).replace(/\/+$/, '')
+import { API_BASE } from '../config/api'
 const VenuesContext = createContext(null)
 
 export function VenuesProvider({ children }) {

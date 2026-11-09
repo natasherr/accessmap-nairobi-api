@@ -1,5 +1,14 @@
 import request from 'supertest';
-import app from '../app.js';
+
+const TEST_API_KEY = 'test-reports-key';
+process.env.API_KEY = TEST_API_KEY;
+const { default: app } = await import('../app.js');
+
+function apiPost(path) {
+  return request(app)
+    .post(path)
+    .set('am-api-key', TEST_API_KEY);
+}
 
 describe('GET /api/reports', () => {
   it('happy path: returns 200 and an array of reports matching the contract shape', async () => {
@@ -33,7 +42,7 @@ describe('POST /api/reports', () => {
       },
       coordinates: { lat: -1.29, lng: 36.82 },
     };
-    const res = await request(app).post('/api/venues').send(venue);
+    const res = await apiPost('/api/venues').send(venue);
     return res.body.id;
   }
 
@@ -54,7 +63,7 @@ describe('POST /api/reports', () => {
     const report = validReport(venueId);
 
     // Act
-    const res = await request(app).post('/api/reports').send(report);
+    const res = await apiPost('/api/reports').send(report);
 
     // Assert
     expect(res.status).toBe(201);
@@ -68,7 +77,7 @@ describe('POST /api/reports', () => {
   it('validation rejection: 400 when venueId is missing', async () => {
     const { venueId, ...invalid } = validReport('irrelevant');
 
-    const res = await request(app).post('/api/reports').send(invalid);
+    const res = await apiPost('/api/reports').send(invalid);
 
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('error');
@@ -78,7 +87,7 @@ describe('POST /api/reports', () => {
     const venueId = await createTestVenue();
     const report = { ...validReport(venueId), rating: 9 };
 
-    const res = await request(app).post('/api/reports').send(report);
+    const res = await apiPost('/api/reports').send(report);
 
     expect(res.status).toBe(400);
   });
@@ -87,7 +96,7 @@ describe('POST /api/reports', () => {
     const venueId = await createTestVenue();
     const report = { ...validReport(venueId), rating: 'four' };
 
-    const res = await request(app).post('/api/reports').send(report);
+    const res = await apiPost('/api/reports').send(report);
 
     expect(res.status).toBe(400);
   });
@@ -96,7 +105,7 @@ describe('POST /api/reports', () => {
     const venueId = await createTestVenue();
     const { visitedAt, ...invalid } = validReport(venueId);
 
-    const res = await request(app).post('/api/reports').send(invalid);
+    const res = await apiPost('/api/reports').send(invalid);
 
     expect(res.status).toBe(400);
   });
@@ -104,7 +113,7 @@ describe('POST /api/reports', () => {
   it('not-found case: returns 404 when venueId does not correspond to a real venue', async () => {
     const report = validReport('v_does_not_exist_' + Date.now());
 
-    const res = await request(app).post('/api/reports').send(report);
+    const res = await apiPost('/api/reports').send(report);
 
     expect(res.status).toBe(404);
     expect(res.body).toHaveProperty('error');

@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react'
-
-const API_BASE = (
-  import.meta.env.VITE_API_BASE ||
-  'https://accessmap-nairobi-api-1.onrender.com/api'
-).replace(/\/+$/, '')
+import { API_BASE } from '../config/api'
 
 export function useVenues() {
 

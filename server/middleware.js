@@ -12,6 +12,13 @@ export function isPublicReadRequest(req) {
     path === '/api/partner/rallies';
 }
 
+export function isPublicRallyFeedbackRequest(req) {
+  if (req.method !== 'POST') return false;
+
+  const path = `${req.baseUrl || ''}${req.path}`.replace(/\/+$/, '') || '/';
+  return /^\/api\/partner\/rallies\/[^/]+\/comments$/.test(path);
+}
+
 export function checkApiKey(req, res, next) {
   const configuredKeys = (process.env.API_KEY || '')
     .split(',')

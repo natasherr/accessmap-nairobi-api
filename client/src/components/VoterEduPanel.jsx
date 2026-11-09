@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CalendarDays, Clock3, LoaderCircle, MapPin, UsersRound } from 'lucide-react'
-
-const API_BASE = (
-  import.meta.env.VITE_API_BASE ||
-  'https://accessmap-nairobi-api-1.onrender.com/api'
-).replace(/\/+$/, '')
+import {
+  AlertTriangle,
+  CalendarDays,
+  Clock3,
+  LoaderCircle,
+  MapPin,
+  MessageSquareText,
+  Send,
+  UsersRound,
+} from 'lucide-react'
+import { API_BASE } from '../config/api'
 const RALLIES_CACHE_KEY = 'accessmap:rallies:v1'
 
 function readRalliesCache() {
@@ -119,8 +124,11 @@ function timeRange(rally) {
 }
 
 function RallyCard({ rally, venue }) {
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [feedbackState, setFeedbackState] = useState({ status: 'idle', message: '' })
   const dateLabel = formatDate(eventDate(rally))
   const timeLabel = timeRange(rally)
+  const rallyId = valueOf(rally, ['id', 'rally_id', 'rallyId'])
   const crowd = valueOf(rally, [
     'expectedCrowd', 'expected_crowd', 'crowdEstimate', 'crowd_estimate',
     'attendanceEstimate', 'attendance_estimate',
@@ -131,6 +139,49 @@ function RallyCard({ rally, venue }) {
   const organizer = valueOf(rally, ['organizer', 'organiser', 'host', 'host_name', 'hostName'])
   const eventType = valueOf(rally, ['eventType', 'event_type', 'type'])
   const place = locationText(rally) || venue.name
+
+  async function submitFeedback(event) {
+    event.preventDefault()
+    const form = event.currentTarget
+    setFeedbackState({ status: 'submitting', message: '' })
+
+    const formData = new FormData(form)
+    const payload = {
+      comment: String(formData.get('comment') || '').trim(),
+      accessible: Number(formData.get('accessible')),
+      congestion_level: formData.get('congestion_level'),
+    }
+    const user = String(formData.get('user') || '').trim()
+    if (user) payload.user = user
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/partner/rallies/${encodeURIComponent(String(rallyId))}/comments`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      )
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result.error || 'Could not submit feedback.')
+      }
+
+      setFeedbackState({
+        status: 'success',
+        message: 'Thanks — your accessibility feedback was submitted.',
+      })
+      form.reset()
+    } catch (error) {
+      setFeedbackState({
+        status: 'error',
+        message: error instanceof Error
+          ? error.message
+          : 'Could not submit feedback. Please try again.',
+      })
+    }
+  }
 
   return (
     <article className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -189,6 +240,95 @@ function RallyCard({ rally, venue }) {
             Check with the venue before travelling if you need specific accessibility arrangements.
           </p>
         </div>
+
+        <div className="mt-3 border-t border-gray-100 pt-3">
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2"
+            onClick={() => {
+              setFeedbackOpen(open => !open)
+              setFeedbackState({ status: 'idle', message: '' })
+            }}
+            aria-expanded={feedbackOpen}
+          >
+            <MessageSquareText className="h-4 w-4" aria-hidden="true" />
+            Share accessibility feedback
+          </button>
+
+          {feedbackOpen && (
+            <form className="mt-3 grid gap-3 rounded-lg bg-gray-50 p-3" onSubmit={submitFeedback}>
+              {!rallyId && (
+                <p className="text-sm text-amber-800" role="status">
+                  Feedback is unavailable because this event has no rally ID.
+                </p>
+              )}
+              <label className="grid gap-1 text-sm font-medium text-gray-800">
+                Your feedback
+                <textarea
+                  name="comment"
+                  required
+                  maxLength={2000}
+                  rows={3}
+                  placeholder="Describe the access, facilities, or crowd conditions you experienced."
+                  className="rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"
+                />
+              </label>
+              <label className="grid gap-1 text-sm font-medium text-gray-800">
+                Name (optional)
+                <input
+                  name="user"
+                  maxLength={80}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"
+                  placeholder="Anonymous attendee"
+                />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1 text-sm font-medium text-gray-800">
+                  Was the rally accessible?
+                  <select
+                    name="accessible"
+                    defaultValue="1"
+                    className="rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"
+                  >
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                  </select>
+                </label>
+                <label className="grid gap-1 text-sm font-medium text-gray-800">
+                  Congestion level
+                  <select
+                    name="congestion_level"
+                    defaultValue="Medium"
+                    className="rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Extreme">Extreme</option>
+                  </select>
+                </label>
+              </div>
+              <button
+                type="submit"
+                disabled={!rallyId || feedbackState.status === 'submitting'}
+                className="inline-flex w-fit items-center gap-2 rounded-lg border border-emerald-700 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {feedbackState.status === 'submitting'
+                  ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  : <Send className="h-4 w-4" aria-hidden="true" />}
+                {feedbackState.status === 'submitting' ? 'Submitting…' : 'Submit feedback'}
+              </button>
+              {feedbackState.message && (
+                <p
+                  className={`text-sm ${feedbackState.status === 'error' ? 'text-red-700' : 'text-emerald-800'}`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {feedbackState.message}
+                </p>
+              )}
+            </form>
+          )}
+        </div>
       </div>
     </article>
   )
@@ -208,7 +348,7 @@ export default function VoterEduPanel({ venue }) {
       setError(false)
       try {
         const response = await fetch(API_BASE + '/partner/rallies', {
-          signal: AbortSignal.timeout(1_000),
+          signal: AbortSignal.timeout(65_000),
         })
         if (!response.ok) throw new Error('Partner rally request failed')
         const payload = await response.json()

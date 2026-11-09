@@ -4,7 +4,11 @@ import dotenv from 'dotenv';
 import venueRoutes from './routes/venues.js';
 import reportRoutes from './routes/reports.js';
 import partnerRoutes from './routes/partner.js';
-import { checkApiKey, isPublicReadRequest } from './middleware.js';
+import {
+  checkApiKey,
+  isPublicReadRequest,
+  isPublicRallyFeedbackRequest,
+} from './middleware.js';
 import { rateLimiter } from './ratelimiter.js';
 import { monitor, statsHandler } from './monitoring.js';
 
@@ -34,10 +38,15 @@ app.get('/', (req, res) => {
 
 const apiKeyRateLimiter = rateLimiter({ windowMs: 60_000, max: 100 });
 const publicReadRateLimiter = rateLimiter({ windowMs: 60_000, max: 100 });
+const publicRallyFeedbackRateLimiter = rateLimiter({ windowMs: 60_000, max: 5 });
 
 app.use('/api', (req, res, next) => {
   if (isPublicReadRequest(req)) {
     return publicReadRateLimiter(req, res, next);
+  }
+
+  if (isPublicRallyFeedbackRequest(req)) {
+    return publicRallyFeedbackRateLimiter(req, res, next);
   }
 
   return checkApiKey(req, res, () =>

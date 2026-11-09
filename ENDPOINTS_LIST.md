@@ -11,6 +11,12 @@
 | POST | `/api/venues` | Add a new venue to the directory | Kanairo-Klean needs to register new waste collection hotspot locations directly into the AccessMap directory |
 | POST | `/api/reports` | Submit an accessibility report for a specific venue | Kanairo-Klean needs to post ground-truth observations about a venue's physical accessibility, to keep hotspot location data accurate and up to date |
 
+## Rally accessibility feedback
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/partner/rallies/:rallyId/comments` | Submit attendee feedback about rally accessibility and congestion; the backend securely proxies the write to Voter Edu |
+
 ## Filters available
 
 | Filter | Example | Description |

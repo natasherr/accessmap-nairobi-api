@@ -55,11 +55,23 @@ You should get `200 OK` with:
 
 ## Authentication
 
-The root `GET /` is a public health check. Read-only venue and report requests, plus `GET /api/partner/rallies`, are also public because this data is displayed in the browser app. These reads are rate-limited by client IP. Do not put an API key in frontend code.
+The root `GET /` is a public health check. Read-only venue and report requests, plus `GET /api/partner/rallies`, are public because this data is displayed in the browser app. The rally accessibility feedback form also has one narrowly scoped public write endpoint; it is rate-limited to five submissions per minute per client IP. Do not put either API key in frontend code.
 
-All write requests and other API routes require an API key in the `am-api-key` request header. Keep keys in server environment variables, never in frontend code or the repository. The partner API key is used only by the backend when it fetches rallies.
+Venue/report writes and other protected API routes require an API key in the `am-api-key` request header. Keep keys in server environment variables, never in frontend code or the repository. The partner API key is sent only by the backend for rally reads and feedback submissions.
 
 For protected requests, send the header `am-api-key: <your-api-key>`. Public read requests do not need this header.
+
+### Rally accessibility feedback
+
+Each rally card includes a feedback form for attendees to report accessibility
+and congestion. The browser sends the submission to
+`POST /api/partner/rallies/{rallyId}/comments`; our backend forwards it to the
+partner API using `PARTNER_URL` and `PARTNER_API_KEY` from `server/.env`.
+The partner key is never sent to the browser. The form accepts a required
+comment, optional name, an accessible yes/no value, and a congestion level of
+`Low`, `Medium`, or `Extreme`. Feedback submissions are not retried, to avoid
+creating duplicate comments if the partner receives a request but its response
+is lost.
 
 ## Upstream partner resilience
 
@@ -68,6 +80,11 @@ and in-memory last-known-good data where available. The rallies endpoint marks
 fallback responses with `stale: true` and an `asOf` timestamp. Run the focused
 checks from `server` with `npm run test:resilience`; see
 [`RESILIENCE_NOTES.md`](RESILIENCE_NOTES.md) for the local flaky-partner drill.
+
+The partner proxy and live partner contract tests use the same `PARTNER_URL`
+value in `server/.env` (the partner API base URL, including `/api`). To run the
+live contract tests, use `npm run test:partner` from `server`; writes remain
+disabled unless explicitly enabled with `ALLOW_PARTNER_WRITES=true`.
 
 ## Request monitoring
 
@@ -505,7 +522,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173/. The app uses the deployed API (`https://accessmap-nairobi-api-1.onrender.com/api`) by default in both development and production. To override it, set `VITE_API_BASE` in the client environment.
+Open http://localhost:5173/. The frontend reads the `API_URL` origin from `server/.env` (or the build environment), then appends `/api` and each endpoint path. For example, `API_URL=https://accessmap-nairobi-api-1.onrender.com` is requested as `/api/venues`; do not include `/api` in `API_URL`. The deployed API origin is used as a fallback if `API_URL` is not set.
 
 | Route            | Page                                 |
 | ---------------- | ------------------------------------ |

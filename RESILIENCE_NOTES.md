@@ -19,10 +19,11 @@ browser. `server/flaky-partner.js` is a local stand-in with `ok`, `slow`,
 | Writes | Never retried | Repeating a POST could create duplicate records. |
 | 429 delay | Partner `Retry-After`, capped at 5 seconds per wait | Respects the partner while bounding each pause. |
 
-The rallies endpoint uses a faster budget: 400 ms per attempt, one retry, and
-100 ms between attempts. Its maximum timeout path is approximately
-`2 × 400 ms + 100 ms = 900 ms`; a 429 `Retry-After` is capped at 100 ms for
-this endpoint. Other partner feeds keep the general settings above.
+The rallies endpoint allows 30 seconds per attempt and one retry, with a
+1-second delay between attempts. Its maximum timeout path is approximately
+61 seconds; the browser allows 65 seconds for the request so a sleeping hosted
+partner has time to wake and respond. Other partner feeds keep the general
+settings above.
 
 Successful valid JSON is held in server memory with an `asOf` timestamp. On a
 later failure, the rallies endpoint responds with `{ data, stale: true, asOf }`;
@@ -31,13 +32,13 @@ since startup, the endpoint responds with 502 and the page displays its
 friendly unavailable message. Restarting the backend clears the server cache.
 The browser also keeps the last successful rallies response in local storage,
 so it can show saved rallies when the AccessMap API is unavailable. The browser
-waits no longer than one second for the API before using that local copy.
+waits no longer than 65 seconds for the API before using that local copy.
 
 ## Local resilience drill
 
 1. In `server/.env`, temporarily point `PARTNER_URL` to
    `http://localhost:4000`; leave the real partner credentials private.
-2. In `client/.env`, temporarily set `VITE_API_BASE=http://localhost:5000/api`.
+2. In `server/.env`, temporarily set `API_URL=http://localhost:5000`.
    Restart the client and backend after changing environment values.
 3. In one terminal, from `server`, run `npm run demo:partner`.
 4. In another terminal, run the backend with `npm run dev`. Open the

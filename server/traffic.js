@@ -2,7 +2,10 @@ import 'dotenv/config';
 
 // Sends a small mix of requests to the AccessMap API.
 // Run from server: node traffic.js
-const API = process.env.API_URL || `http://localhost:${process.env.PORT || 5000}`;
+const API_URL = (
+  process.env.API_URL || `http://localhost:${process.env.PORT || 5000}`
+).replace(/\/+$/, '');
+const API_BASE = `${API_URL}/api`;
 const KEY = process.env.API_KEY?.split(',')[0].trim();
 const N = Number(process.env.N || 60);
 
@@ -11,12 +14,12 @@ if (!KEY) {
 }
 
 const mix = [
-  { method: 'GET', path: '/api/venues', key: true },
-  { method: 'GET', path: '/api/venues?accessible=maybe', key: true },
-  { method: 'GET', path: '/api/venues/no-such-venue/civic', key: true },
-  { method: 'GET', path: '/api/venues/no-such-venue/civic', key: false },
-  { method: 'GET', path: '/api/not-a-route', key: true },
-  { method: 'GET', path: '/api/partner/rallies', key: true },
+  { method: 'GET', path: '/venues', key: true },
+  { method: 'GET', path: '/venues?accessible=maybe', key: true },
+  { method: 'GET', path: '/venues/no-such-venue/civic', key: true },
+  { method: 'GET', path: '/venues/no-such-venue/civic', key: false },
+  { method: 'GET', path: '/not-a-route', key: true },
+  { method: 'GET', path: '/partner/rallies', key: true },
 ];
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -26,7 +29,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   for (let i = 0; i < N; i++) {
     const route = mix[Math.floor(Math.random() * mix.length)];
     try {
-      const response = await fetch(API + route.path, {
+      const response = await fetch(API_BASE + route.path, {
         method: route.method,
         headers: route.key ? { 'am-api-key': KEY } : {},
       });
@@ -41,7 +44,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     Object.entries(counts).map(([status, requests]) => ({ status, requests }))
   );
 
-  const statsResponse = await fetch(`${API}/api/stats`, {
+  const statsResponse = await fetch(`${API_BASE}/stats`, {
     headers: { 'am-api-key': KEY },
   });
   if (!statsResponse.ok) {

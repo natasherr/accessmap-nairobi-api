@@ -2,12 +2,12 @@
 
 ## What changed
 
-- The `/api/partner/rallies` request now uses a 400 ms upstream timeout, one
-  retry, a 100 ms retry delay, and a 100 ms cap for `Retry-After`. A fully timed
-  out retry path is bounded to approximately 900 ms.
-- The rallies panel now times out its request to the AccessMap API after one
-  second. It stores successful rally responses in browser local storage and
-  uses that copy if the API cannot be reached.
+- The `/api/partner/rallies` request allows a 30-second upstream timeout per
+  attempt, one retry, and a one-second retry delay. Its timed-out retry path is
+  bounded to approximately 61 seconds.
+- The rallies panel allows up to 65 seconds for the AccessMap API request so a
+  sleeping hosted partner can wake up. It stores successful rally responses in
+  browser local storage and uses that copy if the API cannot be reached.
 - The panel shows saved rallies while refreshing when a browser cache exists.
   When there is no data yet, it shows an animated, screen-reader-accessible
   loading circle instead of an empty area.

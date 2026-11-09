@@ -2,7 +2,11 @@ import request from 'supertest';
 
 // The contract's `servers` URL, including /api, so every path below
 // matches a path in Voter Edu's openapi.yaml character for character.
-const API = process.env.PARTNER_API_URL || 'http://localhost:5000/api';
+const API = process.env.PARTNER_URL;
+
+if (!API) {
+  throw new Error('PARTNER_URL is required in server/.env to run partner API tests.');
+}
 
 // POST tests that actually create a review change THEIR database and their
 // average ratings. They only run when we explicitly opt in (and have told them).
@@ -65,7 +69,7 @@ beforeAll(async () => {
     res = await request(API).get('/candidates');
   } catch (err) {
     throw new Error(
-      `Cannot reach Voter Edu API at ${API} (${err.code}). Is their server running and is PARTNER_API_URL correct?`
+      `Cannot reach Voter Edu API at ${API} (${err.code}). Is their server running and is PARTNER_URL correct?`
     );
   }
   if (res.status !== 200 || !Array.isArray(res.body) || res.body.length === 0) {

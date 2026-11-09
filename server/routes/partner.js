@@ -1,5 +1,9 @@
 import express from 'express';
-import { fetchPartnerJson, PartnerUnavailableError } from '../resilientFetch.js';
+import {
+  fetchPartnerJson,
+  fetchWithRetry,
+  PartnerUnavailableError,
+} from '../resilientFetch.js';
 
 const router = express.Router();
 
@@ -29,7 +33,7 @@ async function proxyPartnerGet(path, res) {
     }, {
       validate: path === '/rallies' ? isRallyPayload : undefined,
       ...(path === '/rallies'
-        ? { timeoutMs: 400, retries: 1, delayMs: 100, retryAfterMaxMs: 100 }
+        ? { timeoutMs: 30_000, retries: 1, delayMs: 1_000, retryAfterMaxMs: 1_000 }
         : {}),
     });
 
@@ -60,5 +64,85 @@ router.get('/candidates', (req, res) =>
 router.get('/transport/landmarks', (req, res) =>
   proxyPartnerGet('/transport/landmarks', res)
 );
+
+router.post('/rallies/:rallyId/comments', async (req, res) => {
+  const rallyId = req.params.rallyId?.trim();
+  if (!rallyId || rallyId.length > 100 || /[\u0000-\u001f]/.test(rallyId)) {
+    return res.status(400).json({ error: 'A valid rallyId is required.' });
+  }
+
+  const { comment, user, accessible, congestion_level: congestionLevel } = req.body || {};
+  if (typeof comment !== 'string' || !comment.trim() || comment.trim().length > 2_000) {
+    return res.status(400).json({
+      error: 'comment is required and must be 1 to 2000 characters.',
+    });
+  }
+  if (user !== undefined &&
+      (typeof user !== 'string' || user.trim().length > 80)) {
+    return res.status(400).json({ error: 'user must be a string up to 80 characters.' });
+  }
+  if (accessible !== undefined &&
+      ![true, false, 0, 1].includes(accessible)) {
+    return res.status(400).json({ error: 'accessible must be true, false, 0, or 1.' });
+  }
+  if (congestionLevel !== undefined &&
+      !['Low', 'Medium', 'Extreme'].includes(congestionLevel)) {
+    return res.status(400).json({
+      error: 'congestion_level must be Low, Medium, or Extreme.',
+    });
+  }
+
+  const partnerUrl = process.env.PARTNER_URL?.replace(/\/+$/, '');
+  const partnerApiKey = process.env.PARTNER_API_KEY;
+  if (!partnerUrl || !partnerApiKey) {
+    return res.status(503).json({ error: 'Voter Edu API is not configured.' });
+  }
+
+  const payload = {
+    comment: comment.trim(),
+    ...(typeof user === 'string' && user.trim() ? { user: user.trim() } : {}),
+    ...(accessible !== undefined
+      ? { accessible: Number(accessible) }
+      : {}),
+    ...(congestionLevel !== undefined
+      ? { congestion_level: congestionLevel }
+      : {}),
+  };
+
+  try {
+    const response = await fetchWithRetry(
+      `${partnerUrl}/rallies/${encodeURIComponent(rallyId)}/comments`,
+      {
+        method: 'POST',
+        headers: {
+          'X-API-Key': partnerApiKey,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(payload),
+      },
+      { timeoutMs: 5_000, retries: 0 }
+    );
+
+    if (!response.ok) {
+      const status = response.status >= 400 && response.status < 500
+        ? response.status
+        : 502;
+      return res.status(status).json({
+        error: status === 502
+          ? 'Voter Edu could not save the feedback.'
+          : 'Voter Edu rejected the feedback.',
+      });
+    }
+
+    const result = await response.json();
+    return res.status(201).json(result);
+  } catch (error) {
+    console.error('Error submitting rally accessibility feedback:', error);
+    return res.status(502).json({
+      error: 'Voter Edu is temporarily unable to save feedback. Please try again.',
+    });
+  }
+});
 
 export default router;

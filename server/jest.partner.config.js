@@ -1,4 +1,4 @@
-import 'dotenv/config'; // loads PARTNER_API_URL and ALLOW_PARTNER_WRITES from server/.env
+import 'dotenv/config'; // loads PARTNER_URL and ALLOW_PARTNER_WRITES from server/.env
 
 export default {
   testEnvironment: 'node',

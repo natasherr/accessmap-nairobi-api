@@ -67,3 +67,118 @@ The app handled the simulated partner outage correctly:
 - All other venue data (accessibility features, community reports, ratings) remained fully available
 - The AccessMap API healthcheck at `/` continued returning `200 OK`
 - After restoring `PARTNER_URL` and redeploying, the Voter Guide recovered with no code changes
+
+---
+
+# Week 13 Integration Log — Versioning
+
+Date: 4 November 2026
+Direction: receiving a breaking change from upstream (Group 11 Voter Edu API)
+Local app: AccessMap Nairobi
+
+---
+
+## What arrived
+
+A deprecation notice from Group 11 arrived stating that their candidate-list
+endpoint is changing shape. The specific change: the response to
+`GET /candidates` is being wrapped in a `{ data, count }` envelope (matching
+the same pattern we are shipping to Group 13). Individual candidate objects
+inside `data` remain the same.
+
+Headers on every v1 response from Group 11:
+- `Deprecation: true`
+- `Sunset: Fri, 13 Nov 2026 00:00:00 GMT`
+- `Link: </v2/candidates>; rel="successor-version"`
+
+---
+
+## Step 1 — How the notice felt to receive
+
+The notice was clear: it named the changed field, showed a before/after
+example, and gave a date. The one thing missing was an explicit statement about
+whether query parameters (e.g., any filters) still work unchanged on v2.
+A direct question was sent to Group 11 to confirm this before switching.
+
+---
+
+## Step 2 — Tried the new version by hand before touching code
+
+```
+GET /v2/candidates  →  { "data": [...], "count": N }
+```
+
+Compared to the example in their notice — shapes matched.
+
+---
+
+## Step 3 — Isolated the partner shape in one place
+
+Created `server/partner.js`. The only file that knows whether we are talking
+to v1 or v2 of the upstream API is this adapter module. The rest of the app
+always receives `{ id, name, party, average_rating, review_count }`.
+
+```js
+// server/partner.js (see file for full source)
+export function parseCandidates(data, version) {
+  if (version === 'v2') {
+    if (!data || !Array.isArray(data.data)) {
+      throw new Error('Partner v2 /candidates response has unexpected shape');
+    }
+    return data.data.map(normaliseCandidate);
+  }
+  // v1: bare array
+  if (!Array.isArray(data)) {
+    throw new Error('Partner v1 /candidates response has unexpected shape');
+  }
+  return data.map(normaliseCandidate);
+}
+```
+
+---
+
+## Step 4 — Switched via environment variable
+
+Added `PARTNER_VERSION=v1` to `.env.example`. The civic proxy routes in
+`server/routes/venues.js` now read `process.env.PARTNER_VERSION` and pass the
+correct URL prefix to `fetchPartnerJson`. Migrating to v2 is a one-word
+`.env` change; rolling back is equally simple.
+
+---
+
+## Step 5 — What was our code, what changed
+
+| File | Change |
+|---|---|
+| `server/partner.js` | New — isolates v1/v2 parse logic |
+| `server/routes/venues.js` | Reads `PARTNER_VERSION` env var to pick URL and parser |
+| `.env.example` | Added `PARTNER_VERSION=v1` |
+| `server/__tests__/partner.test.js` | New — unit tests for both parsers |
+
+---
+
+## Step 6 — Checked for the quiet failure
+
+After setting `PARTNER_VERSION=v2` and restarting:
+- Verified `stale: false` in the civic endpoint response (live data reached)
+- No `partner call failed` lines in the terminal
+- Switched back to v1, confirmed both still worked until sunset
+
+---
+
+## Step 7 — Evidence sent to Group 11
+
+Shared a screenshot of our `/api/stats` response showing:
+- `GET /v2/candidates` row with our caller label and a growing count
+- `GET /candidates` (v1) count stopped increasing after the switch
+
+---
+
+## What was different this time
+
+Nothing broke. Because we received a notice before the change landed, we had
+time to prepare the adapter, write tests, and verify the switch. Compare this
+to a surprise breakage: the civic panel would have started returning `502` or
+silently serving stale data, and the cause would not have been obvious from
+the error alone. Advance notice converted a potential incident into a
+scheduled, reversible migration.

@@ -1,6 +1,7 @@
 import express from 'express';
 import pool from '../db.js';
 import { fetchPartnerJson, PartnerUnavailableError } from '../resilientFetch.js';
+import { old } from '../deprecate.js';
 
 const router = express.Router();
 
@@ -73,8 +74,8 @@ function validateAccessibility(acc) {
   return null;
 }
 
-// GET /api/venues - Get venues with optional query filters
-router.get('/', async (req, res) => {
+// GET /api/venues - Get venues with optional query filters (legacy — deprecated, use /v2/venues)
+router.get('/', old, async (req, res) => {
   try {
     const { category, area, accessible } = req.query;
 
@@ -110,8 +111,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/venues/:slug - Get single venue details
-router.get('/:slug', async (req, res) => {
+// GET /api/venues/:slug - Get single venue details (legacy — deprecated)
+router.get('/:slug', old, async (req, res) => {
   try {
     const { slug } = req.params;
     const { rows } = await pool.query('SELECT * FROM "Venue" WHERE slug = $1', [slug]);
@@ -127,8 +128,8 @@ router.get('/:slug', async (req, res) => {
   }
 });
 
-// GET /api/venues/:slug/rating - Get average star rating for a venue
-router.get('/:slug/rating', async (req, res) => {
+// GET /api/venues/:slug/rating - (legacy — deprecated)
+router.get('/:slug/rating', old, async (req, res) => {
   try {
     const { slug } = req.params;
     const venueResult = await pool.query('SELECT id, slug FROM "Venue" WHERE slug = $1', [slug]);
@@ -157,8 +158,8 @@ router.get('/:slug/rating', async (req, res) => {
   }
 });
 
-// GET /api/venues/:venueId/reports - Aux endpoint used by frontend UI
-router.get('/:venueId/reports', async (req, res) => {
+// GET /api/venues/:venueId/reports - Aux endpoint used by frontend UI (legacy — deprecated)
+router.get('/:venueId/reports', old, async (req, res) => {
   try {
     const { venueId } = req.params;
     const { rows } = await pool.query('SELECT * FROM "Report" WHERE "venueId" = $1', [venueId]);

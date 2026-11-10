@@ -23,7 +23,10 @@ function newRoute() {
 
 export function monitor(req, res, next) {
   const start = process.hrtime.bigint();
-  const path = req.path;
+  // Capture the full path (including baseUrl) at request-start time so the
+  // version prefix (/v1, /v2) is preserved in the log even after sub-routers
+  // strip it from req.path.
+  const fullPath = (req.baseUrl || '') + req.path;
 
   res.on('finish', () => {
     const ms = Number(process.hrtime.bigint() - start) / 1e6;
@@ -31,7 +34,7 @@ export function monitor(req, res, next) {
     console.log(JSON.stringify({
       time: new Date().toISOString(),
       method: req.method,
-      path,
+      path: fullPath,
       status: res.statusCode,
       ms: round(ms),
       caller: who(req),

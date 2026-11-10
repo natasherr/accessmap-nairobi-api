@@ -9,7 +9,16 @@ export function isPublicReadRequest(req) {
     /^\/api\/venues\/[^/]+\/rating$/.test(path) ||
     /^\/api\/venues\/[^/]+\/reports$/.test(path) ||
     path === '/api/reports' ||
-    path === '/api/partner/rallies';
+    path === '/api/partner/rallies' ||
+    // versioned read paths are also public
+    path === '/v1/venues' ||
+    /^\/v1\/venues\/[^/]+$/.test(path) ||
+    /^\/v1\/venues\/[^/]+\/rating$/.test(path) ||
+    /^\/v1\/venues\/[^/]+\/reports$/.test(path) ||
+    path === '/v2/venues' ||
+    /^\/v2\/venues\/[^/]+$/.test(path) ||
+    /^\/v2\/venues\/[^/]+\/rating$/.test(path) ||
+    /^\/v2\/venues\/[^/]+\/reports$/.test(path);
 }
 
 export function isPublicRallyFeedbackRequest(req) {

@@ -450,10 +450,6 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '502':
-          description: The partner service could not save the feedback
-        '503':
-          description: Partner API credentials are not configured on this server
-        '502':
           description: Partner data unavailable and no saved response exists
           content:
             application/json:

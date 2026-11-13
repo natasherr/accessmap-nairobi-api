@@ -1,30 +1,56 @@
 # AccessMap Nairobi API
 
-A REST API for accessibility information about venues across Nairobi: hospitals, markets, schools, banks and more. It tells you which venues have ramps, lifts, accessible toilets and other features, and it collects community reports and star ratings from visitors. All responses are JSON.
+A REST API for accessibility information about venues across Nairobi — hospitals, markets, schools, banks, and more. It records which venues have ramps, lifts, accessible toilets, and other features, and it collects community reports and star ratings from visitors. All responses are JSON.
 
-It is built for developers whose apps need to know whether a place is physically accessible, and it powers the AccessMap Nairobi web app in this repository.
+It is built for developers whose apps need to know whether a place is physically accessible, and it powers the AccessMap Nairobi web app also in this repository.
 
-|                                         |                                                                                                                         |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| **Live API**                      | [Render_Production_Url](https://accessmap-nairobi-api-1.onrender.com)                                                    |
-| **Interactive docs (Swagger UI)** | [https://natasherr.github.io/acce<br />ssmap-nairobi-api/docs/](https://natasherr.github.io/accessmap-nairobi-api/docs/) |
-| **Contract**                      | [`openapi.yaml`](openapi.yaml)                                                                                         |
+|                                         |                                                                                               |
+| --------------------------------------- | --------------------------------------------------------------------------------------------- |
+| **Live API**                            | <https://accessmap-nairobi-api-1.onrender.com>                                               |
+| **Interactive docs (Swagger UI)**       | <https://natasherr.github.io/accessmap-nairobi-api/docs/>                                   |
+| **OpenAPI contract**                    | [`openapi.yaml`](openapi.yaml)                                                               |
+| **Default branch**                      | `develop`                                                                                    |
 
-All example commands below use the live API address. On Windows PowerShell, type `curl.exe` instead of `curl` (plain `curl` is a different command there). Responses are shown formatted for readability; the real output is a single line.
+> **Free-tier cold start** — the live API runs on a free Render instance and goes to sleep when idle. The first request after a quiet period can take 30–60 seconds. Wait for it, or press `Ctrl+C` and retry.
+
+---
+
+## Table of contents
+
+1. [Quickstart (curl)](#quickstart)
+2. [Repository layout](#repository-layout)
+3. [Prerequisites](#prerequisites)
+4. [Run the API locally](#run-the-api-locally)
+5. [Run the web app locally](#run-the-web-app-locally)
+6. [Environment variables](#environment-variables)
+7. [Authentication](#authentication)
+8. [Rate limiting](#rate-limiting)
+9. [API versioning](#api-versioning)
+10. [Endpoints — v2 (current)](#endpoints--v2-current)
+11. [Endpoints — v1 (deprecated)](#endpoints--v1-deprecated)
+12. [Partner API proxy](#partner-api-proxy)
+13. [Request monitoring](#request-monitoring)
+14. [Running tests](#running-tests)
+15. [Accessibility fields reference](#accessibility-fields-reference)
+16. [Error format](#error-format)
 
 ---
 
 ## Quickstart
 
-Copy, paste, run on the terminal:
-
-Use the **-UseBasicParsing** argument when prompted to do so to keep things simple 😁.
+Paste this in any terminal to confirm the live API is responding:
 
 ```bash
 curl https://accessmap-nairobi-api-1.onrender.com/api/venues/kenyatta-national-hospital
 ```
 
-You should get `200 OK` with:
+**Windows PowerShell users:** use `curl.exe` — the PowerShell built-in `curl` alias is `Invoke-WebRequest` and behaves differently.
+
+```powershell
+curl.exe https://accessmap-nairobi-api-1.onrender.com/api/venues/kenyatta-national-hospital
+```
+
+Expected `200 OK` response:
 
 ```json
 {
@@ -34,6 +60,7 @@ You should get `200 OK` with:
   "area": "Upper Hill",
   "address": "Hospital Rd, Nairobi",
   "category": "hospital",
+  "isCivic": false,
   "accessibility": {
     "ramp": true,
     "lift": true,
@@ -49,59 +76,622 @@ You should get `200 OK` with:
 }
 ```
 
-**If the request hangs:** the live API runs on a free tier and goes to sleep when idle. The first request after a quiet period can take 30 to 60 seconds. Wait for it, or press Ctrl+C and run the command again.
+---
+
+## Repository layout
+
+```
+accessmap-nairobi-api/
+├── server/                 Express + PostgreSQL API
+│   ├── index.js            Entry point — starts the HTTP server
+│   ├── app.js              Express app, middleware, route mounts
+│   ├── db.js               pg connection pool
+│   ├── middleware.js        Auth, public-route allow-list
+│   ├── ratelimiter.js       In-memory rate limiter
+│   ├── monitoring.js        Request logger + /api/stats handler
+│   ├── partner.js           Partner API helpers
+│   ├── resilientFetch.js    Retry/timeout wrapper for upstream calls
+│   ├── deprecate.js         Deprecation header middleware (v1)
+│   ├── flaky-partner.js     Local flaky-server simulator for resilience drills
+│   ├── traffic.js           Lab traffic-generation script
+│   ├── routes/
+│   │   ├── venues.js        Legacy /api/venues routes (alias to v1)
+│   │   ├── v1.js            Frozen v1 venue routes — DO NOT EDIT
+│   │   ├── v2.js            Current v2 venue routes
+│   │   ├── reports.js       /api/reports routes
+│   │   └── partner.js       /api/partner proxy routes
+│   ├── schema/
+│   │   └── schema.sql       SQL to create all tables (run once)
+│   └── __tests__/           Jest test suites
+├── client/                 React + Vite + Tailwind CSS web app
+│   ├── src/
+│   │   ├── config/api.js    API base URL config
+│   │   ├── pages/           Home, Directory, VenueDetail, ReportForm, About
+│   │   └── components/      Shared UI components
+│   └── vite.config.js       Reads API_URL from server/.env at build time
+├── docs/                   Swagger UI static page (GitHub Pages)
+├── openapi.yaml            Full OpenAPI 3.0 contract
+├── .env.example            Template for server/.env — copy and fill in
+└── vercel.json             Client SPA rewrite rule for Vercel deploys
+```
+
+> **Note:** `server.js` at the repository root belongs to a retired earlier version and is **not used**. Run everything from the `server/` folder.
+
+---
+
+## Prerequisites
+
+| Tool | Minimum version | Notes |
+| ---- | --------------- | ----- |
+| Node.js | 18 | <https://nodejs.org/> |
+| npm | bundled with Node | |
+| Git | any recent | <https://git-scm.com/> |
+| PostgreSQL database | 14+ | Local install **or** a free hosted instance such as [Supabase](https://supabase.com/) |
+
+---
+
+## Run the API locally
+
+### 1. Clone the repository
+
+```bash
+git clone -b develop https://github.com/natasherr/accessmap-nairobi-api.git
+cd accessmap-nairobi-api
+```
+
+### 2. Install server dependencies
+
+All server commands run from the `server/` folder:
+
+```bash
+cd server
+npm install
+```
+
+### 3. Create `server/.env`
+
+Copy the template:
+
+```bash
+# from the repository root
+cp .env.example server/.env
+```
+
+Then open `server/.env` and fill in **all required values**:
+
+```dotenv
+# PostgreSQL connection string — main app database
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE
+
+# PostgreSQL connection string — separate test database (used by Jest only)
+TEST_DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE_test
+
+# Port the server listens on (Render sets this automatically in production)
+PORT=5000
+
+# API key(s) for protected endpoints — comma-separated for multiple consumers
+# Generate a random key: node -e "console.log(require('crypto').randomUUID())"
+API_KEY=replace-with-generated-api-key
+
+# Partner API (Voter Edu — Group 11) — base URL including /api
+PARTNER_URL=https://voter-edu-backend.onrender.com/api
+PARTNER_API_KEY=replace-with-your-private-group-11-key
+
+# Partner API version ("v1" or "v2")
+PARTNER_VERSION=v1
+
+# Leave false in normal operation — only set true for explicit partner write tests
+ALLOW_PARTNER_WRITES=false
+
+# API origin used by the frontend build and traffic.js (no trailing /api)
+API_URL=https://accessmap-nairobi-api-1.onrender.com
+```
+
+> **Special characters in passwords** — if your PostgreSQL password contains `#`, `@`, or `%`, URL-encode them (`#` → `%23`, `@` → `%40`, `%` → `%25`). Otherwise the connection string parser will misread the URL.
+
+> **Network note** — many campus Wi-Fi networks block outbound connections on port 5432 (PostgreSQL). If the server cannot reach a hosted database, try a phone hotspot.
+
+### 4. Create the database tables
+
+Run [`server/schema/schema.sql`](server/schema/schema.sql) against your empty database **once**:
+
+**Supabase:** paste the file contents into the SQL Editor and click Run.
+
+**Local PostgreSQL:**
+
+```bash
+psql -d YOUR_DATABASE_NAME -f schema/schema.sql
+```
+
+This creates two tables: `Venue` and `Report`.
+
+### 5. Start the server
+
+```bash
+# from server/
+npm start
+```
+
+For development with auto-restart on file changes:
+
+```bash
+npm run dev
+```
+
+### 6. Verify it is running
+
+```bash
+curl http://localhost:5000/
+# → AccessMap API is running
+```
+
+```bash
+curl http://localhost:5000/api/venues
+# → [] (empty array — a fresh database has no venues)
+```
+
+Add venues using the `POST /api/venues` examples in the [Endpoints](#endpoints--v2-current) section below, using `http://localhost:5000` as the base URL.
+
+---
+
+## Run the web app locally
+
+The `client/` folder is a standalone Vite + React + Tailwind app. It reads `API_URL` from `server/.env` at **build time** (via [`client/vite.config.js`](client/vite.config.js)) and falls back to the deployed API origin if that variable is not set.
+
+```bash
+# from the repository root
+cd client
+npm install
+npm run dev
+```
+
+Open <http://localhost:5173/> in your browser.
+
+| Route | Page |
+| ----- | ---- |
+| `/` | Home |
+| `/directory` | Searchable, filterable venue listing |
+| `/venue/:slug` | Venue detail with community reports |
+| `/report` | 4-step report submission form |
+| `/about` | About |
+
+To point the dev frontend at your local API instead of the deployed one, set `API_URL=http://localhost:5000` in `server/.env` and restart `npm run dev`.
+
+To build for production:
+
+```bash
+npm run build
+# output goes to client/dist/
+```
+
+---
+
+## Environment variables
+
+All variables live in `server/.env`. The file is gitignored — never commit it.
+
+| Variable | Required | Description |
+| -------- | -------- | ----------- |
+| `DATABASE_URL` | ✅ | PostgreSQL connection string for the running server |
+| `TEST_DATABASE_URL` | ✅ (for tests) | Separate PostgreSQL database used by Jest. Required if running `npm test`. The server refuses to use `DATABASE_URL` for test runs to prevent pollution. |
+| `PORT` | optional | HTTP port (default `5000`). Render sets this automatically. |
+| `API_KEY` | ✅ | Comma-separated API key(s) for protected endpoints |
+| `PARTNER_URL` | ✅ (for partner features) | Voter Edu API base URL **including** `/api` |
+| `PARTNER_API_KEY` | ✅ (for partner features) | Private key for the upstream partner API — never sent to the browser |
+| `PARTNER_VERSION` | optional | `v1` or `v2` (default `v1`) |
+| `ALLOW_PARTNER_WRITES` | optional | Set `true` only to enable partner write tests (`npm run test:partner`) |
+| `API_URL` | optional | API origin used by the frontend build and `traffic.js` (no `/api` suffix). Falls back to the deployed URL. |
 
 ---
 
 ## Authentication
 
-The root `GET /` is a public health check. Read-only venue and report requests, plus `GET /api/partner/rallies`, are public because this data is displayed in the browser app. The rally accessibility feedback form also has one narrowly scoped public write endpoint; it is rate-limited to five submissions per minute per client IP. Do not put either API key in frontend code.
+| Endpoint category | How to call it |
+| ----------------- | -------------- |
+| `GET /` health check | No header required |
+| `GET /api/venues`, `GET /api/venues/:slug`, `GET /api/venues/:slug/rating`, `GET /api/venues/:slug/reports`, `GET /api/reports` | No header required (public reads) |
+| `GET /api/partner/rallies` | No header required (public read) |
+| All versioned GET equivalents (`/v1/…`, `/v2/…`) | No header required |
+| `POST /api/venues` (or `/v1/…`, `/v2/…`), `POST /api/reports` | **Required**: `am-api-key: <your-key>` |
+| `GET /api/stats` | **Required**: `am-api-key: <your-key>` |
+| `POST /api/partner/rallies/:rallyId/comments` | Public (rate-limited to 5/min per IP; backend forwards securely with `PARTNER_API_KEY`) |
 
-Venue/report writes and other protected API routes require an API key in the `am-api-key` request header. Keep keys in server environment variables, never in frontend code or the repository. The partner API key is sent only by the backend for rally reads and feedback submissions.
+Send the key in the `am-api-key` request header:
 
-For protected requests, send the header `am-api-key: <your-api-key>`. Public read requests do not need this header.
+```bash
+curl -X POST https://accessmap-nairobi-api-1.onrender.com/api/venues \
+  -H "am-api-key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d @venue.json
+```
 
-### Rally accessibility feedback
+**Generate a fresh key** (run once, store the output in `API_KEY` in `server/.env`):
 
-Each rally card includes a feedback form for attendees to report accessibility
-and congestion. The browser sends the submission to
-`POST /api/partner/rallies/{rallyId}/comments`; our backend forwards it to the
-partner API using `PARTNER_URL` and `PARTNER_API_KEY` from `server/.env`.
-The partner key is never sent to the browser. The form accepts a required
-comment, optional name, an accessible yes/no value, and a congestion level of
-`Low`, `Medium`, or `Extreme`. Feedback submissions are not retried, to avoid
-creating duplicate comments if the partner receives a request but its response
-is lost.
+```bash
+node -e "console.log(require('crypto').randomUUID())"
+```
 
-## Upstream partner resilience
+Never put API keys in frontend code or commit them to the repository.
 
-Partner GET requests use a 1.5-second per-attempt timeout, at most two retries,
-and in-memory last-known-good data where available. The rallies endpoint marks
-fallback responses with `stale: true` and an `asOf` timestamp. Run the focused
-checks from `server` with `npm run test:resilience`; see
-[`RESILIENCE_NOTES.md`](RESILIENCE_NOTES.md) for the local flaky-partner drill.
+### 401 Unauthorized
 
-The partner proxy and live partner contract tests use the same `PARTNER_URL`
-value in `server/.env` (the partner API base URL, including `/api`). To run the
-live contract tests, use `npm run test:partner` from `server`; writes remain
-disabled unless explicitly enabled with `ALLOW_PARTNER_WRITES=true`.
+Header missing:
+
+```json
+{ "error": "API Key not found" }
+```
+
+Header present but wrong value:
+
+```json
+{ "error": "API Key does not match" }
+```
+
+---
+
+## Rate limiting
+
+| Request type | Limit |
+| ------------ | ----- |
+| Public reads (by client IP) | 100 requests / minute |
+| API-key requests (by key) | 100 requests / minute |
+| Rally feedback `POST` (by client IP) | 5 requests / minute |
+
+When the limit is exceeded:
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 60
+
+{ "error": "Too many requests", "retryAfter": 60 }
+```
+
+Wait `retryAfter` seconds before retrying.
+
+---
+
+## API versioning
+
+Two versions of the venue endpoints are live simultaneously:
+
+| Version | Base path | Status |
+| ------- | --------- | ------ |
+| v1 | `/api/venues` and `/v1/venues` | **Deprecated** — sends `Deprecation` and `Sunset` headers. Still functional but may be removed at any time. |
+| v2 | `/v2/venues` | **Current** — use this for all new integrations |
+
+### Breaking change in v2
+
+`GET /v2/venues` returns a wrapped envelope instead of a bare array:
+
+```json
+{ "data": [ ...venues... ], "count": 42 }
+```
+
+All other endpoint shapes (single venue, rating, reports, POST body/response) are identical between v1 and v2.
+
+### Migration from v1 to v2
+
+```js
+// v1 — bare array
+const venues = await fetch(`${API_BASE}/api/venues?category=market`).then(r => r.json());
+
+// v2 — wrapped envelope
+const { data: venues } = await fetch(`${API_BASE}/v2/venues?category=market`).then(r => r.json());
+```
+
+`POST /api/reports` does **not** move — it remains at `/api/reports` in both versions.
+
+---
+
+## Endpoints — v2 (current)
+
+Use `/v2/venues` for all new integrations. The `/api/reports` path is unchanged.
+
+| # | Method | Path | Auth required | Success |
+| - | ------ | ---- | :-----------: | ------- |
+| 1 | `GET` | `/v2/venues` | ❌ | `200` |
+| 2 | `GET` | `/v2/venues/{slug}` | ❌ | `200` |
+| 3 | `GET` | `/v2/venues/{slug}/rating` | ❌ | `200` |
+| 4 | `GET` | `/v2/venues/{slug}/reports` | ❌ | `200` |
+| 5 | `POST` | `/v2/venues` | ✅ | `201` |
+| 6 | `POST` | `/api/reports` | ✅ | `201` |
+
+Send `Content-Type: application/json` on every `POST`.
+
+---
+
+### 1. List venues — `GET /v2/venues`
+
+Returns venues wrapped in `{ data, count }`. With no parameters, all venues are returned. Parameters combine with AND.
+
+| Query parameter | Type | Meaning |
+| --------------- | ---- | ------- |
+| `category` | string | Exact match. Values: `hospital`, `market`, `office`, `school`, `transport`, `bank`, `hotel`, `other` |
+| `area` | string | Exact match. Examples: `Westlands`, `Karen`, `CBD`, `Upper Hill`, `Runda` |
+| `accessible` | boolean | `true` returns only venues where `ramp`, `accessibleToilet`, **and** `accessibleParking` are all `true`. Any other value returns `400`. |
+
+```bash
+curl "https://accessmap-nairobi-api-1.onrender.com/v2/venues?category=hospital&accessible=true"
+```
+
+Response `200`:
+
+```json
+{
+  "count": 1,
+  "data": [
+    {
+      "id": "v_001",
+      "slug": "kenyatta-national-hospital",
+      "name": "Kenyatta National Hospital",
+      "area": "Upper Hill",
+      "address": "Hospital Rd, Nairobi",
+      "category": "hospital",
+      "isCivic": false,
+      "accessibility": {
+        "ramp": true,
+        "lift": true,
+        "accessibleToilet": true,
+        "accessibleParking": true,
+        "tactilePaving": false,
+        "wideCorridors": true,
+        "audioAssistance": false,
+        "staffAssistance": true
+      },
+      "coordinates": { "lat": -1.3004, "lng": 36.8073 },
+      "addedAt": "2024-01-15T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+No matches returns `200` with `{ "data": [], "count": 0 }`.
+
+---
+
+### 2. Get one venue — `GET /v2/venues/{slug}`
+
+`{slug}` is the `slug` field from any venue object.
+
+```bash
+curl https://accessmap-nairobi-api-1.onrender.com/v2/venues/kenyatta-national-hospital
+```
+
+Response `200`: a single venue object (same shape as items inside `data` above).
+
+Unknown slug → `404`:
+
+```json
+{ "error": "No venue found with the given slug" }
+```
+
+---
+
+### 3. Average rating — `GET /v2/venues/{slug}/rating`
+
+```bash
+curl https://accessmap-nairobi-api-1.onrender.com/v2/venues/kenyatta-national-hospital/rating
+```
+
+Response `200`:
+
+```json
+{
+  "slug": "kenyatta-national-hospital",
+  "averageRating": 4.3,
+  "totalReports": 3
+}
+```
+
+`averageRating` is rounded to one decimal place. A venue with no reports returns `"averageRating": 0` and `"totalReports": 0`.
+
+---
+
+### 4. List reports for a venue — `GET /v2/venues/{slug}/reports`
+
+```bash
+curl https://accessmap-nairobi-api-1.onrender.com/v2/venues/kenyatta-national-hospital/reports
+```
+
+Response `200`: array of report objects (same shape as the `POST /api/reports` response).
+
+---
+
+### 5. Add a venue — `POST /v2/venues`
+
+The server assigns `id`, `slug`, and `addedAt` — do not include them in the request body.
+
+Save this as `venue.json`:
+
+```json
+{
+  "name": "Sunrise Pharmacy",
+  "area": "Westlands",
+  "address": "Mpaka Rd, Westlands, Nairobi",
+  "category": "other",
+  "accessibility": {
+    "ramp": true,
+    "lift": false,
+    "accessibleToilet": false,
+    "accessibleParking": true,
+    "tactilePaving": false,
+    "wideCorridors": true,
+    "audioAssistance": false,
+    "staffAssistance": false
+  },
+  "coordinates": { "lat": -1.2676, "lng": 36.8062 }
+}
+```
+
+All top-level fields are required. All eight `accessibility` values must be booleans. `coordinates.lat` and `coordinates.lng` must be numbers.
+
+```bash
+curl -X POST https://accessmap-nairobi-api-1.onrender.com/v2/venues \
+  -H "am-api-key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d @venue.json
+```
+
+Response `201` (`id` and `addedAt` will differ):
+
+```json
+{
+  "id": "v_035",
+  "slug": "sunrise-pharmacy",
+  "name": "Sunrise Pharmacy",
+  "area": "Westlands",
+  "address": "Mpaka Rd, Westlands, Nairobi",
+  "category": "other",
+  "isCivic": false,
+  "accessibility": {
+    "ramp": true,
+    "lift": false,
+    "accessibleToilet": false,
+    "accessibleParking": true,
+    "tactilePaving": false,
+    "wideCorridors": true,
+    "audioAssistance": false,
+    "staffAssistance": false
+  },
+  "coordinates": { "lat": -1.2676, "lng": 36.8062 },
+  "addedAt": "2026-10-06T09:15:42.118Z"
+}
+```
+
+Duplicate name + area → `409 Conflict`:
+
+```json
+{
+  "error": "A venue with this name already exists in this area.",
+  "existing": { "...": "the existing venue object" }
+}
+```
+
+---
+
+### 6. Submit a report — `POST /api/reports`
+
+`venueId` must be the `id` of an existing venue (e.g. `"v_035"` from the POST response above).
+
+Save this as `report.json`, replacing `VENUE_ID` with the actual id:
+
+```json
+{
+  "venueId": "VENUE_ID",
+  "rating": 4,
+  "description": "Ramp at the entrance and helpful staff.",
+  "visitedAt": "2026-10-01",
+  "accessibility": {
+    "ramp": true,
+    "lift": false,
+    "accessibleToilet": false,
+    "accessibleParking": true,
+    "tactilePaving": false,
+    "wideCorridors": true,
+    "audioAssistance": false,
+    "staffAssistance": true
+  }
+}
+```
+
+| Field | Rules |
+| ----- | ----- |
+| `venueId` | Required string — must match an existing venue `id` |
+| `rating` | Required integer from `1` to `5` |
+| `visitedAt` | Required date string in `YYYY-MM-DD` format |
+| `description` | Optional string |
+| `accessibility` | Required — all eight values must be booleans |
+
+```bash
+curl -X POST https://accessmap-nairobi-api-1.onrender.com/api/reports \
+  -H "am-api-key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d @report.json
+```
+
+Response `201`:
+
+```json
+{
+  "id": "r_034",
+  "venueId": "v_035",
+  "rating": 4,
+  "description": "Ramp at the entrance and helpful staff.",
+  "visitedAt": "2026-10-01",
+  "submittedAt": "2026-10-06T09:20:11.532Z",
+  "accessibility": {
+    "ramp": true,
+    "lift": false,
+    "accessibleToilet": false,
+    "accessibleParking": true,
+    "tactilePaving": false,
+    "wideCorridors": true,
+    "audioAssistance": false,
+    "staffAssistance": true
+  }
+}
+```
+
+`description` is omitted from the response when you did not send it.
+
+---
+
+## Endpoints — v1 (deprecated)
+
+> ⚠️ **v1 is deprecated.** It sends `Deprecation` and `Sunset` headers. Use [v2](#endpoints--v2-current) for all new code. The `/api/venues` path is kept alive as a legacy alias.
+
+| Method | v1 path | v2 equivalent |
+| ------ | ------- | ------------- |
+| `GET` | `/api/venues` or `/v1/venues` | `GET /v2/venues` |
+| `GET` | `/api/venues/:slug` or `/v1/venues/:slug` | `GET /v2/venues/:slug` |
+| `GET` | `/api/venues/:slug/rating` | `GET /v2/venues/:slug/rating` |
+| `GET` | `/api/venues/:slug/reports` | `GET /v2/venues/:slug/reports` |
+| `POST` | `/api/venues` or `/v1/venues` | `POST /v2/venues` |
+
+The only breaking change is that `GET /v2/venues` returns `{ data, count }` instead of a bare array.
+
+---
+
+## Partner API proxy
+
+The server proxies selected routes from the Voter Edu partner API (Group 11) so the partner key never reaches the browser.
+
+| Method | Path | Auth | Description |
+| ------ | ---- | ---- | ----------- |
+| `GET` | `/api/partner/rallies` | Public | Lists upcoming rallies. Responses are cached in memory; if the upstream is unavailable, the last known good data is returned with `stale: true`. |
+| `GET` | `/api/partner/candidates` | Public | Lists candidates. |
+| `GET` | `/api/partner/transport/landmarks` | Public | Lists transport landmarks. |
+| `POST` | `/api/partner/rallies/:rallyId/comments` | Public (5/min rate limit) | Forwards an accessibility/congestion feedback comment to the partner API. Not retried — to avoid duplicate submissions if the partner receives the request but its response is lost. |
+
+### Rally feedback fields
+
+| Field | Required | Type | Rules |
+| ----- | -------- | ---- | ----- |
+| `comment` | ✅ | string | 1–2000 characters |
+| `user` | ❌ | string | Up to 80 characters |
+| `accessible` | ❌ | boolean or 0/1 | `true`, `false`, `0`, or `1` |
+| `congestion_level` | ❌ | string | `Low`, `Medium`, or `Extreme` |
+
+### Upstream resilience
+
+- Partner GET requests use a **1.5-second per-attempt timeout**, at most **2 retries**, and in-memory last-known-good data where available.
+- The rallies endpoint marks fallback responses with `stale: true` and an `asOf` timestamp.
+- Run the focused resilience tests: `npm run test:resilience` from `server/`.
+- To run a local flaky-partner drill: `npm run demo:partner` (starts the mock server) — see [`RESILIENCE_NOTES.md`](RESILIENCE_NOTES.md).
+- Live partner contract tests: `npm run test:partner` (writes disabled unless `ALLOW_PARTNER_WRITES=true`).
+
+---
 
 ## Request monitoring
 
-The API writes one JSON log line for each completed request. It records the
-timestamp, method, path without query parameters, status, response time, and
-either `none` or a short fingerprint of a valid API key. It never logs the key
-itself or request/response bodies.
+The server writes one JSON log line per completed request: timestamp, method, path (no query string), status, response time in ms, and either `none` or a short fingerprint of a valid API key. Request/response bodies and raw keys are never logged.
 
-`GET /api/stats` requires the `am-api-key` header and returns in-memory request
-counts, error counts, response-time averages, and totals by route pattern.
-These numbers reset when the server restarts. Like the logger, it is intended
-for this lab, not as a replacement for production monitoring.
+### `GET /api/stats`
 
-Example:
+Returns in-memory counters since the last server restart. Requires `am-api-key`.
 
 ```powershell
-curl.exe -H "am-api-key: <your-api-key>" http://localhost:5000/api/stats
+curl.exe -H "am-api-key: YOUR_KEY" http://localhost:5000/api/stats
 ```
 
 ```json
@@ -125,311 +715,84 @@ curl.exe -H "am-api-key: <your-api-key>" http://localhost:5000/api/stats
 }
 ```
 
-For the lab traffic script, put `API_URL` and a valid `API_KEY` in `server/.env`,
-then run from `server`. `API_URL` can target the deployed API; if omitted, the
-script uses `http://localhost:<PORT>`:
+### Traffic generation script
 
-```powershell
+Put `API_URL` and `API_KEY` in `server/.env`, then run from `server/`:
+
+```bash
 node traffic.js
 ```
 
-The script sends read-only requests, including a missing-key request. Keep
-`requests.log` local; `*.log` files are ignored by Git.
-
-### 401 Unauthorized
-
-The key is missing or wrong. Nothing is returned or saved.
-
-Header not sent:
-
-```
-HTTP/1.1 401 Unauthorized
-Content-Type: application/json; charset=utf-8
-
-{"error":"API Key not found"}
-```
-
-Key sent but not valid:
-
-```
-HTTP/1.1 401 Unauthorized
-Content-Type: application/json; charset=utf-8
-
-{"error":"API Key does not match"}
-```
-
-### 429 Too Many Requests
-
-The limit is **100 requests per minute**. Public reads are limited per client IP; API-key-protected requests are limited per API key.
-
-```
-HTTP/1.1 429 Too Many Requests
-Content-Type: application/json; charset=utf-8
-Retry-After: 60
-
-{"error":"Too many requests","retryAfter":60}
-```
-
-Wait `retryAfter` seconds (the same value is in the `Retry-After` header) before retrying.
-
-
+The script sends read-only requests including one missing-key request. Keep `requests.log` local — `*.log` files are gitignored.
 
 ---
 
-## Endpoints
+## Running tests
 
-| # | Method   | Path                          | What it does                          | Success |
-| - | -------- | ----------------------------- | ------------------------------------- | ------- |
-| 1 | `GET`  | `/api/venues`               | List venues, optionally filtered      | `200` |
-| 2 | `GET`  | `/api/venues/{slug}`        | Get one venue by slug                 | `200` |
-| 3 | `GET`  | `/api/venues/{slug}/rating` | Average star rating for a venue       | `200` |
-| 4 | `POST` | `/api/venues`               | Add a new venue                       | `201` |
-| 5 | `POST` | `/api/reports`              | Submit a community report for a venue | `201` |
+All test commands run from the `server/` folder.
 
-Send `Content-Type: application/json` on every `POST`.
+### Prerequisites for tests
 
-### 1. List venues: `GET /api/venues`
-
-Returns an array of venues. With no parameters it returns every venue. Parameters combine with AND.
-
-| Parameter      | Type    | Meaning                                                                                                                          |
-| -------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `category`   | string  | Exact, case-sensitive match. Values in use:`hospital`, `market`, `office`, `school`, `transport`, `bank`, `hotel`, `other`  |
-| `area`       | string  | Exact, case-sensitive match, for example`Westlands`, `Karen`, `CBD`, `Upper Hill`                                        |
-| `accessible` | boolean | `true` returns only venues that have a ramp, an accessible toilet **and** accessible parking. An invalid value returns 400.
-
-Request:
+- `TEST_DATABASE_URL` must be set in `server/.env` pointing to a **separate** seeded test database. The server will refuse to run tests against `DATABASE_URL`.
+- The test database must be empty or contain only the fixtures expected by the tests.
 
 ```bash
-curl "https://accessmap-nairobi-api-1.onrender.com/api/venues?category=hotel&area=Runda"
+cd server
 ```
 
-Response `200`:
+| Command | What it runs |
+| ------- | ------------ |
+| `npm test` | All Jest unit + integration tests |
+| `npm run test:resilience` | Focused partner-resilience tests only |
+| `npm run test:partner` | Live partner API contract tests (set `ALLOW_PARTNER_WRITES=true` to enable write tests) |
+| `npm run demo:partner` | Starts the local flaky-partner simulator for manual resilience drills |
 
-```json
-[
-  {
-    "id": "v_034",
-    "slug": "glee-hotel",
-    "name": "Glee hotel ",
-    "area": "Runda",
-    "address": "Northern Bypass Nairobi -Off Limuru rd",
-    "category": "hotel",
-    "accessibility": {
-      "ramp": false,
-      "lift": false,
-      "accessibleToilet": false,
-      "accessibleParking": false,
-      "tactilePaving": false,
-      "wideCorridors": false,
-      "audioAssistance": false,
-      "staffAssistance": false
-    },
-    "coordinates": {
-      "lat": -1.2921,
-      "lng": 36.8219
-    },
-    "addedAt": "2026-09-04T07:19:46.667Z"
-  }
-]
-```
+Test files are in [`server/__tests__/`](server/__tests__/) and cover venues, reports, middleware, rate limiter, monitoring, partner resilience, resilient fetch, and API versioning.
 
-If nothing matches, you get `200` with an empty array `[]`, not an error.
+---
 
-### 2. Get one venue: `GET /api/venues/{slug}`
+## Accessibility fields reference
 
-`{slug}` is the venue's `slug` field from the list endpoint. The quickstart above is this endpoint.
+Every venue and report carries an `accessibility` object with these eight boolean fields:
 
-Response `200`: a single venue object, as shown in the Quickstart.
+| Field | `true` means |
+| ----- | ------------ |
+| `ramp` | Ramp or step-free entry exists |
+| `lift` | Lift or elevator present |
+| `accessibleToilet` | Accessible toilet available |
+| `accessibleParking` | Accessible parking bays available |
+| `tactilePaving` | Tactile paving for visually impaired visitors |
+| `wideCorridors` | Corridors wide enough for wheelchairs |
+| `audioAssistance` | Audio assistance or announcements available |
+| `staffAssistance` | Staff trained to assist people with disabilities |
 
-Unknown slug, `404`:
-
-```bash
-curl https://accessmap-nairobi-api-1.onrender.com/api/venues/no-such-venue
-```
-
-```json
-{ "error": "No venue found with the given slug" }
-```
-
-### 3. Average rating: `GET /api/venues/{slug}/rating`
-
-Request:
-
-```bash
-curl https://accessmap-nairobi-api-1.onrender.com/api/venues/kenyatta-national-hospital/rating
-```
-
-Response `200`:
-
-```json
-{
-  "slug": "kenyatta-national-hospital",
-  "averageRating": 4.3,
-  "totalReports": 3
-}
-```
-
-`averageRating` is rounded to one decimal place. A venue with no reports returns `"averageRating": 0` and `"totalReports": 0`. Unknown slug returns `404` with the error format below.
-
-### 4. Add a venue: `POST /api/venues`
-
-Creates a real record. The server assigns `id` and `slug`; you do not need to send them.
-
-Save this as `venue.json` in the folder where you are trying to make requests via the api.
-
-```json
-{
-  "name": "Sunrise Pharmacy",
-  "area": "Westlands",
-  "address": "Mpaka Rd, Westlands, Nairobi",
-  "category": "other",
-  "accessibility": {
-    "ramp": true,
-    "lift": false,
-    "accessibleToilet": false,
-    "accessibleParking": true,
-    "tactilePaving": false,
-    "wideCorridors": true,
-    "audioAssistance": false,
-    "staffAssistance": false
-  },
-  "coordinates": { "lat": -1.2676, "lng": 36.8062 }
-}
-```
-
-All fields are required. All eight `accessibility` values must be booleans, and `coordinates.lat` and `coordinates.lng` must be numbers.
-
-Request:
-
-```bash
-curl -X POST https://accessmap-nairobi-api-1.onrender.com/api/venues -H "Content-Type: application/json" -d @venue.json
-```
-
-Response `201` (your `id` and `addedAt` will differ):
-
-```json
-{
-  "id": "v_034",
-  "slug": "sunrise-pharmacy",
-  "name": "Sunrise Pharmacy",
-  "area": "Westlands",
-  "address": "Mpaka Rd, Westlands, Nairobi",
-  "category": "other",
-  "accessibility": {
-    "ramp": true,
-    "lift": false,
-    "accessibleToilet": false,
-    "accessibleParking": true,
-    "tactilePaving": false,
-    "wideCorridors": true,
-    "audioAssistance": false,
-    "staffAssistance": false
-  },
-  "coordinates": { "lat": -1.2676, "lng": 36.8062 },
-  "addedAt": "2026-10-06T09:15:42.118Z"
-}
-```
-
-**Run it twice and you get `409 Conflict`.** A venue with the same `name` and `area` cannot be added again. The response includes the venue that already exists:
-
-```json
-{
-  "error": "A venue with this name already exists in this area.",
-  "existing": { "...": "the existing venue, same shape as the 201 response" }
-}
-```
-
-To add another one, change `name` in `venue.json`. Note the `id` in the response: you need it for the next step.
-
-### 5. Submit a report: `POST /api/reports`
-
-A report is one visitor's rating and observations for one venue. `venueId` must be the `id` of a venue that already exists, taken from a previous response (you cannot invent one).
-
-Save this as `report.json`, replacing `REPLACE_WITH_ID_FROM_STEP_4` with the `id` you got back in step 4 (for example `v_034`):
-
-```json
-{
-  "venueId": "REPLACE_WITH_ID_FROM_STEP_4",
-  "rating": 4,
-  "description": "Ramp at the entrance and helpful staff.",
-  "visitedAt": "2026-10-01",
-  "accessibility": {
-    "ramp": true,
-    "lift": false,
-    "accessibleToilet": false,
-    "accessibleParking": true,
-    "tactilePaving": false,
-    "wideCorridors": true,
-    "audioAssistance": false,
-    "staffAssistance": true
-  }
-}
-```
-
-| Field             | Rules                                               |
-| ----------------- | --------------------------------------------------- |
-| `venueId`       | Required string. Must match an existing venue`id` |
-| `rating`        | Required integer from 1 to 5                        |
-| `visitedAt`     | Required date string in`YYYY-MM-DD` format        |
-| `description`   | Optional string                                     |
-| `accessibility` | Required. All eight values must be booleans         |
-
-Request:
-
-```bash
-curl -X POST https://accessmap-nairobi-api-1.onrender.com/api/reports -H "Content-Type: application/json" -d @report.json
-```
-
-Response `201` (your `id` and `submittedAt` will differ):
-
-```json
-{
-  "id": "r_033",
-  "venueId": "v_034",
-  "rating": 4,
-  "description": "Ramp at the entrance and helpful staff.",
-  "visitedAt": "2026-10-01",
-  "submittedAt": "2026-10-06T09:20:11.532Z",
-  "accessibility": {
-    "ramp": true,
-    "lift": false,
-    "accessibleToilet": false,
-    "accessibleParking": true,
-    "tactilePaving": false,
-    "wideCorridors": true,
-    "audioAssistance": false,
-    "staffAssistance": true
-  }
-}
-```
-
-`description` is left out of the response when you did not send one.
-
-To see the effect, call `GET /api/venues/sunrise-pharmacy/rating` (use the slug from step 4): it now reports `"totalReports": 1`.
+Timestamps (`addedAt`, `submittedAt`) are ISO 8601 in UTC. `visitedAt` is a plain `YYYY-MM-DD` date string.
 
 ---
 
 ## Error format
 
-Every error response is a JSON object with an `error` message:
+Every error response is a JSON object with an `error` key:
 
 ```json
 { "error": "rating is required and must be an integer from 1 to 5" }
 ```
 
-| Status                        | Meaning                                                              | Example`error`                                        |
-| ----------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------- |
-| `400 Bad Request`           | A required field is missing or has the wrong type. Nothing was saved | `name is required and must be a string`               |
-| `404 Not Found`             | The slug or`venueId` does not match any venue                      | `No venue found with the given slug`                  |
-| `409 Conflict`              | The venue already exists (adds an`existing` field)                 | `A venue with this name already exists in this area.` |
-| `500 Internal Server Error` | Unexpected failure on the server                                     | `Unexpected server error`                             |
+| Status | Meaning | Notes |
+| ------ | ------- | ----- |
+| `400 Bad Request` | A required field is missing or has the wrong type. Nothing was saved. | |
+| `401 Unauthorized` | API key missing or invalid | |
+| `404 Not Found` | Slug or `venueId` does not match any venue | |
+| `409 Conflict` | Duplicate venue (same `name` + `area`). Response includes an `existing` field. | |
+| `429 Too Many Requests` | Rate limit exceeded. `Retry-After` header and `retryAfter` field tell you how many seconds to wait. | |
+| `502 Bad Gateway` | Upstream partner API returned an error or is unreachable | |
+| `503 Service Unavailable` | Partner API is not configured in the environment | |
+| `500 Internal Server Error` | Unexpected server failure | |
 
-Any status below 400 means success. If the `error` key is present, the request failed.
-
-Other `400` messages you may see, one per validation rule:
+Common `400` messages:
 
 ```
+name is required and must be a string
 area is required and must be a string
 address is required and must be a string
 category is required and must be a string
@@ -438,111 +801,8 @@ accessibility.ramp must be a boolean
 coordinates.lat and coordinates.lng are required numbers
 venueId is required and must be a string
 visitedAt is required and must be a date string
+accessible must be a boolean (true or false)
 ```
-
----
-
-## Accessibility fields
-
-Every venue and report has an `accessibility` object with these eight boolean values:
-
-| Field                 | `true` means                                   |
-| --------------------- | ------------------------------------------------ |
-| `ramp`              | Ramp or step-free entry                          |
-| `lift`              | Lift or elevator                                 |
-| `accessibleToilet`  | Accessible toilet                                |
-| `accessibleParking` | Accessible parking                               |
-| `tactilePaving`     | Tactile paving for visually impaired visitors    |
-| `wideCorridors`     | Corridors wide enough for wheelchairs            |
-| `audioAssistance`   | Audio assistance                                 |
-| `staffAssistance`   | Staff trained to assist people with disabilities |
-
-Timestamps (`addedAt`, `submittedAt`) are ISO 8601 in UTC. `visitedAt` is a plain `YYYY-MM-DD` date.
-
----
-
-## Run the API locally
-
-These steps assume a completely clean clone. You need [Node.js](https://nodejs.org/) 18 or newer, [Git](https://git-scm.com/), and a PostgreSQL database you can connect to (a local install, or a free hosted one such as Supabase).
-
-**1. Clone and install.** Run everything from the `server/` folder. The `server.js` at the repository root belongs to a retired earlier version and is not used.
-
-```bash
-git clone -b develop https://github.com/natasherr/accessmap-nairobi-api.git
-cd accessmap-nairobi-api/server
-npm install
-```
-
-**2. Create `server/.env`** with your database connection string:
-
-```
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE
-PORT=5000
-```
-
-If your password contains special characters such as `#` or `@`, URL-encode them (`#` becomes `%23`, `@` becomes `%40`), or the connection will fail.
-
-**3. Create the tables.** Run the contents of [`server/schema.sql`](server/schema.sql) in your database. In Supabase, paste it into the SQL Editor. With a local PostgreSQL install, run `psql -d YOUR_DATABASE -f schema.sql`.
-
-**4. Start the server:**
-
-```bash
-npm start
-```
-
-**5. Check it is running:**
-
-```bash
-curl http://localhost:5000/
-```
-
-It should print `AccessMap API is running`.
-
-A fresh database has no venues, so `curl http://localhost:5000/api/venues` returns `[]`. Add data with the `POST` examples above, using `http://localhost:5000` as the address. The hosted API already contains 33 seeded Nairobi venues.
-
-Some networks, including many campus Wi-Fi networks, block outbound PostgreSQL connections. If the server cannot reach a hosted database, try a phone hotspot.
-
-### Run the tests
-
-```bash
-npm test
-```
-
-The tests create venues and reports. Set `TEST_DATABASE_URL` to a separate seeded test database before running them; the server refuses to use `DATABASE_URL` for Jest tests to prevent test records from leaking into the app directory. The test database should contain the venue fixtures expected by the tests.
-
----
-
-## The web app
-
-The repository also contains the AccessMap Nairobi web app in `client/`, built with React, Vite and Tailwind CSS. It lets people search and filter venues, view accessibility badges and community ratings, get Google Maps directions, share a venue on WhatsApp, print a venue card, and submit a report through a 4-step form.
-
-```bash
-cd client
-npm install
-npm run dev
-```
-
-Open http://localhost:5173/. The frontend reads the `API_URL` origin from `server/.env` (or the build environment), then appends `/api` and each endpoint path. For example, `API_URL=https://accessmap-nairobi-api-1.onrender.com` is requested as `/api/venues`; do not include `/api` in `API_URL`. The deployed API origin is used as a fallback if `API_URL` is not set.
-
-| Route            | Page                                 |
-| ---------------- | ------------------------------------ |
-| `/`            | Home                                 |
-| `/directory`   | Searchable, filterable venue listing |
-| `/venue/:slug` | Venue detail with community reports  |
-| `/report`      | 4-step report form                   |
-| `/about`       | About                                |
-
----
-
-## Repository layout
-
-```
-server/        Express + PostgreSQL API (documented above)
-client/        React web app
-docs/          Swagger UI page, published with GitHub Pages
-openapi.yaml   The API contract
-```
-
 
 ---
 

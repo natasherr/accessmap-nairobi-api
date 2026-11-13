@@ -1,4 +1,14 @@
 import request from 'supertest';
+import { jest } from '@jest/globals';
+
+// ── Mock the database module before app.js is imported ──────────────────────
+const mockQuery = jest.fn();
+jest.unstable_mockModule('../db.js', () => ({
+  default: { query: mockQuery },
+  pool:    { query: mockQuery },
+}));
+
+const { default: pool } = await import('../db.js');
 
 const TEST_API_KEY = 'test-reports-key';
 process.env.API_KEY = TEST_API_KEY;
@@ -10,8 +20,43 @@ function apiPost(path) {
     .set('am-api-key', TEST_API_KEY);
 }
 
+// ── Shared fixture data ──────────────────────────────────────────────────────
+const fakeVenueRow = {
+  id: 'v_001',
+  slug: 'test-venue',
+  name: 'Test Venue',
+  area: 'Test Area',
+  address: '1 Test Rd',
+  category: 'other',
+  isCivic: false,
+  ramp: true, lift: false, accessibleToilet: true, accessibleParking: true,
+  tactilePaving: false, wideCorridors: true, audioAssistance: false, staffAssistance: true,
+  lat: '-1.29', lng: '36.82',
+  addedAt: '2026-01-01T00:00:00.000Z',
+  isSeeded: false,
+};
+
+const fakeReportRow = {
+  id: 'r_001',
+  venueId: 'v_001',
+  rating: 4,
+  description: 'Test report',
+  visitedAt: '2026-06-15',
+  submittedAt: '2026-06-16T00:00:00.000Z',
+  ramp: true, lift: true, accessibleToilet: true, accessibleParking: true,
+  tactilePaving: false, wideCorridors: true, audioAssistance: false, staffAssistance: true,
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
+// ── GET /api/reports ─────────────────────────────────────────────────────────
+
 describe('GET /api/reports', () => {
   it('happy path: returns 200 and an array of reports matching the contract shape', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [fakeReportRow] });
+
     const res = await request(app).get('/api/reports');
 
     expect(res.status).toBe(200);
@@ -27,26 +72,10 @@ describe('GET /api/reports', () => {
   });
 });
 
-describe('POST /api/reports', () => {
-  // Arrange helper — creates a fresh venue to attach reports to,
-  // so tests don't depend on hardcoded/seeded IDs that might not exist
-  async function createTestVenue() {
-    const venue = {
-      name: 'Report Test Venue ' + Date.now() + Math.random(),
-      area: 'Test Area',
-      address: '1 Test Rd',
-      category: 'other',
-      accessibility: {
-        ramp: true, lift: false, accessibleToilet: true, accessibleParking: true,
-        tactilePaving: false, wideCorridors: true, audioAssistance: false, staffAssistance: true,
-      },
-      coordinates: { lat: -1.29, lng: 36.82 },
-    };
-    const res = await apiPost('/api/venues').send(venue);
-    return res.body.id;
-  }
+// ── POST /api/reports ────────────────────────────────────────────────────────
 
-  const validReport = (venueId) => ({
+describe('POST /api/reports', () => {
+  const validReport = (venueId = 'v_001') => ({
     venueId,
     rating: 4,
     description: 'Test report',
@@ -58,16 +87,17 @@ describe('POST /api/reports', () => {
   });
 
   it('happy path: returns 201 and the created report matching the contract shape', async () => {
-    // Arrange
-    const venueId = await createTestVenue();
-    const report = validReport(venueId);
+    // venueCheck → venue exists, maxId → next id, insert → row
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 'v_001' }] })          // venue exists
+      .mockResolvedValueOnce({ rows: [{ max_num: 0 }] })            // MAX id
+      .mockResolvedValueOnce({ rows: [fakeReportRow] });             // INSERT RETURNING
 
-    // Act
+    const report = validReport('v_001');
     const res = await apiPost('/api/reports').send(report);
 
-    // Assert
     expect(res.status).toBe(201);
-    expect(res.body.venueId).toBe(venueId);
+    expect(res.body.venueId).toBe('v_001');
     expect(res.body.rating).toBe(4);
     expect(res.body).toHaveProperty('id');
     expect(res.body).toHaveProperty('submittedAt');
@@ -75,7 +105,7 @@ describe('POST /api/reports', () => {
   });
 
   it('validation rejection: 400 when venueId is missing', async () => {
-    const { venueId, ...invalid } = validReport('irrelevant');
+    const { venueId, ...invalid } = validReport();
 
     const res = await apiPost('/api/reports').send(invalid);
 
@@ -84,8 +114,7 @@ describe('POST /api/reports', () => {
   });
 
   it('validation rejection: 400 when rating is out of range', async () => {
-    const venueId = await createTestVenue();
-    const report = { ...validReport(venueId), rating: 9 };
+    const report = { ...validReport(), rating: 9 };
 
     const res = await apiPost('/api/reports').send(report);
 
@@ -93,8 +122,7 @@ describe('POST /api/reports', () => {
   });
 
   it('validation rejection: 400 when rating has the wrong type', async () => {
-    const venueId = await createTestVenue();
-    const report = { ...validReport(venueId), rating: 'four' };
+    const report = { ...validReport(), rating: 'four' };
 
     const res = await apiPost('/api/reports').send(report);
 
@@ -102,8 +130,7 @@ describe('POST /api/reports', () => {
   });
 
   it('validation rejection: 400 when visitedAt is missing', async () => {
-    const venueId = await createTestVenue();
-    const { visitedAt, ...invalid } = validReport(venueId);
+    const { visitedAt, ...invalid } = validReport();
 
     const res = await apiPost('/api/reports').send(invalid);
 
@@ -111,12 +138,13 @@ describe('POST /api/reports', () => {
   });
 
   it('not-found case: returns 404 when venueId does not correspond to a real venue', async () => {
-    const report = validReport('v_does_not_exist_' + Date.now());
+    // venueCheck → no rows found
+    mockQuery.mockResolvedValueOnce({ rows: [] });
 
+    const report = validReport('v_does_not_exist');
     const res = await apiPost('/api/reports').send(report);
 
     expect(res.status).toBe(404);
     expect(res.body).toHaveProperty('error');
   });
-
 });

@@ -41,17 +41,15 @@ describe('GET /api/partner/rallies resilience contract', () => {
     clearPartnerResponseCache();
   });
 
-  it('returns live rallies in the response envelope and keeps the key server-side', async () => {
+  it('returns live rallies as a bare array and keeps the key server-side', async () => {
     globalThis.fetch.mockResolvedValue(jsonResponse(200, [{ id: 'rally-1' }]));
 
     const response = await request(app).get('/api/partner/rallies');
 
     expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({
-      data: [{ id: 'rally-1' }],
-      stale: false,
-    });
-    expect(response.body.asOf).toEqual(expect.any(String));
+    expect(response.body).toEqual([{ id: 'rally-1' }]);
+    expect(response.headers['x-data-stale']).toBe('false');
+    expect(response.headers['x-data-as-of']).toEqual(expect.any(String));
     expect(globalThis.fetch).toHaveBeenCalledWith(
       'https://group11.example/api/rallies',
       expect.objectContaining({
@@ -69,11 +67,9 @@ describe('GET /api/partner/rallies resilience contract', () => {
 
     expect(liveResponse.status).toBe(200);
     expect(staleResponse.status).toBe(200);
-    expect(staleResponse.body).toEqual({
-      ...liveResponse.body,
-      stale: true,
-    });
-    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+    expect(staleResponse.body).toEqual(liveResponse.body);
+    expect(staleResponse.headers['x-data-stale']).toBe('true');
+    expect(globalThis.fetch).toHaveBeenCalledTimes(4);
   });
 
   it('returns 502 if upstream fails before any good response is cached', async () => {
@@ -85,7 +81,7 @@ describe('GET /api/partner/rallies resilience contract', () => {
     expect(response.body).toEqual({
       message: 'Voter Edu data is temporarily unavailable.',
     });
-    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
   });
 
   it('does not cache a malformed rally response as last-known-good data', async () => {

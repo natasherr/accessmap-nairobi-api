@@ -60,3 +60,37 @@ export function candidatesUrl(partnerBaseUrl) {
   const base = partnerBaseUrl.replace(/\/+$/, '');
   return version === 'v2' ? `${base}/v2/candidates` : `${base}/candidates`;
 }
+
+/**
+ * Build the correct /rallies URL for the configured partner version.
+ *
+ * @param {string} partnerBaseUrl  - e.g. https://voter-edu.onrender.com/api
+ * @returns {string}
+ */
+export function ralliesUrl(partnerBaseUrl) {
+  const version = process.env.PARTNER_VERSION || 'v1';
+  const base = partnerBaseUrl.replace(/\/+$/, '');
+  return version === 'v2' ? `${base}/v2/rallies` : `${base}/rallies`;
+}
+
+/**
+ * Parse the raw response body from GET /rallies (or /v2/rallies).
+ * Returns a bare array in both versions so callers always receive the same shape.
+ *
+ * @param {unknown} data    - parsed JSON body from the partner (already extracted from fetchPartnerJson cache envelope)
+ * @param {'v1'|'v2'} version
+ * @returns {object[]}
+ */
+export function parseRallies(data, version = 'v1') {
+  if (Array.isArray(data)) return data;
+
+  if (data !== null && typeof data === 'object') {
+    for (const key of ['data', 'items', 'results', 'rallies']) {
+      if (Array.isArray(data[key])) return data[key];
+    }
+  }
+
+  throw new Error(
+    `Partner ${version} /rallies response has unexpected shape — expected an array or { data: [...] }`
+  );
+}

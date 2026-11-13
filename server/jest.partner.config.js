@@ -5,4 +5,5 @@ export default {
   testMatch: ['**/__tests__/partner/**/*.test.js'],
   // Their server may be slow to answer (free hosting wakes up from sleep)
   testTimeout: 30000,
+  globalTeardown: './jest.teardown.js',
 };

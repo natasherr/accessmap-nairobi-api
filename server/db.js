@@ -25,12 +25,15 @@ export const pool = new Pool({
   }
 });
 
-// Test the connection on startup
-pool.query('SELECT NOW()', (err, res) => {
-  if (err) {
-    console.error('❌ Database connection error:', err.stack);
-  } else {
-    console.log('✅ Successfully connected to Supabase PostgreSQL at:', res.rows[0].now);
-  }
-});
+// Test the connection on startup — skip in test mode since db.js is mocked
+// during tests and the real pool is only used by jest.teardown.js (for pool.end).
+if (!isTestProcess) {
+  pool.query('SELECT NOW()', (err, res) => {
+    if (err) {
+      console.error('❌ Database connection error:', err.stack);
+    } else {
+      console.log('✅ Successfully connected to Supabase PostgreSQL at:', res.rows[0].now);
+    }
+  });
+}
 export default pool;

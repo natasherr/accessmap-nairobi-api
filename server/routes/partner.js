@@ -4,6 +4,7 @@ import {
   fetchWithRetry,
   PartnerUnavailableError,
 } from '../resilientFetch.js';
+import { candidatesUrl, parseCandidates, ralliesUrl, parseRallies } from '../partner.js';
 
 const router = express.Router();
 
@@ -33,7 +34,7 @@ async function proxyPartnerGet(path, res) {
     }, {
       validate: path === '/rallies' ? isRallyPayload : undefined,
       ...(path === '/rallies'
-        ? { timeoutMs: 30_000, retries: 1, delayMs: 1_000, retryAfterMaxMs: 1_000 }
+        ? { timeoutMs: 3_000, retries: 2, delayMs: 1_000, retryAfterMaxMs: 1_000 }
         : {}),
     });
 
@@ -53,13 +54,70 @@ async function proxyPartnerGet(path, res) {
   }
 }
 
-router.get('/rallies', (req, res) =>
-  proxyPartnerGet('/rallies', res)
-);
+router.get('/rallies', async (req, res) => {
+  const partnerUrl = process.env.PARTNER_URL?.replace(/\/+$/, '');
+  const partnerApiKey = process.env.PARTNER_API_KEY;
+  const version = process.env.PARTNER_VERSION || 'v1';
 
-router.get('/candidates', (req, res) =>
-  proxyPartnerGet('/candidates', res)
-);
+  if (!partnerUrl || !partnerApiKey) {
+    return res.status(503).json({ message: 'Voter Edu API is not configured.' });
+  }
+
+  try {
+    const result = await fetchPartnerJson(ralliesUrl(partnerUrl), {
+      headers: {
+        'X-API-Key': partnerApiKey,
+        Accept: 'application/json',
+      },
+    }, {
+      validate: isRallyPayload,
+      timeoutMs: 3_000, retries: 2, delayMs: 1_000, retryAfterMaxMs: 1_000,
+    });
+
+    const rallies = parseRallies(result.data, version);
+
+    res.set('X-Data-Stale', String(result.stale));
+    res.set('X-Data-As-Of', result.asOf);
+    return res.status(200).json(rallies);
+  } catch (error) {
+    if (error instanceof PartnerUnavailableError) {
+      return res.status(502).json({ message: 'Voter Edu data is temporarily unavailable.' });
+    }
+    console.error('Unexpected error while preparing Voter Edu response:', error);
+    return res.status(500).json({ message: 'Unexpected server error.' });
+  }
+});
+
+router.get('/candidates', async (req, res) => {
+  const partnerUrl = process.env.PARTNER_URL?.replace(/\/+$/, '');
+  const partnerApiKey = process.env.PARTNER_API_KEY;
+  const version = process.env.PARTNER_VERSION || 'v1';
+
+  if (!partnerUrl || !partnerApiKey) {
+    return res.status(503).json({ message: 'Voter Edu API is not configured.' });
+  }
+
+  try {
+    const result = await fetchPartnerJson(candidatesUrl(partnerUrl), {
+      headers: {
+        'X-API-Key': partnerApiKey,
+        Accept: 'application/json',
+      },
+    });
+
+    const candidates = parseCandidates(result.data, version);
+
+    res.set('X-Data-Stale', String(result.stale));
+    res.set('X-Data-As-Of', result.asOf);
+    return res.status(200).json(candidates);
+  } catch (error) {
+    if (error instanceof PartnerUnavailableError) {
+      return res.status(502).json({ message: 'Voter Edu data is temporarily unavailable.' });
+    }
+    console.error('Unexpected error while preparing Voter Edu response:', error);
+    return res.status(500).json({ message: 'Unexpected server error.' });
+  }
+});
 
 router.get('/transport/landmarks', (req, res) =>
   proxyPartnerGet('/transport/landmarks', res)
